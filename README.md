@@ -1,31 +1,31 @@
 # SteemWallet - Blockchain Wallet Application
 
 
-## 📌 Project Repository
+## Project Repository
 
 **GitHub URL**: [https://github.com/blazeapps007/steemWallet](https://github.com/blazeapps007/steemWallet)
 
-## 🌟 Project Overview
+## Project Overview
 
 SteemWallet is a secure, open-source cryptocurrency wallet tailored for the Steem blockchain. It offers a modern and intuitive interface for users to manage their STEEM tokens, perform transactions, and interact with the blockchain seamlessly.This project has  Licencing Requirments for some use cases , Please see https://github.com/blazeapps007/steemWallet?tab=License-1-ov-file
 ### Core Technologies
 
-* ⚡ **Vite** - Fast and optimized frontend tooling
-* 🚀 **React 18** - Component-based UI framework
-* 💻 **TypeScript** - Strongly typed JavaScript
-* 🎨 **shadcn/ui** - Modern, accessible UI components
-* 🖌️ **Tailwind CSS** - Utility-first CSS styling
+* **Vite** - Fast and optimized frontend tooling
+* **React 18** - Component-based UI framework
+* **TypeScript** - Strongly typed JavaScript
+* **shadcn/ui** - Modern, accessible UI components
+* **Tailwind CSS** - Utility-first CSS styling
 
-## ✨ Key Features
+## Key Features
 
-* 🔐 Secure Steem account integration and key management
-* 💸 Fast and reliable STEEM token transfers
-* 📊 Real-time account balance and transaction tracking
-* 🔗 Direct interaction with the Steem blockchain
-* 📱 Fully responsive UI for all device sizes
-* 🌙 Dark mode and light mode support
+* Secure Steem account integration and key management
+* Fast and reliable STEEM token transfers
+* Real-time account balance and transaction tracking
+* Direct interaction with the Steem blockchain
+* Fully responsive UI for all device sizes
+* Dark mode and light mode support
 
-## 🛠️ Development Setup
+## Development Setup
 
 ### Prerequisites
 
@@ -47,7 +47,7 @@ npm install
 npm run dev
 ```
 
-### 📜 Available Scripts
+### Available Scripts
 
 | Command           | Description                            |
 | ----------------- | -------------------------------------- |
@@ -56,7 +56,7 @@ npm run dev
 | `npm run lint`    | Runs ESLint for code quality           |
 | `npm run preview` | Previews the production build locally  |
 
-## 🚀 Deployment
+## Deployment
 
 Deploy your application to any of the following platforms with ease:
 
@@ -70,7 +70,7 @@ Supported Platforms:
 * AWS Amplify
 * Firebase Hosting
 
-## 🤝 Contributing
+## Contributing
 
 We love contributions from the community! To contribute:
 
@@ -82,23 +82,23 @@ We love contributions from the community! To contribute:
 
 For major changes, please open an issue first to discuss your ideas.
 
-## 📄 License
+## License
 
 **Custom Non-Commercial License**
 
 ### Usage Rights
 
-* ✅ Free to use
-* ✅ Free to modify
-* ✅ Free to distribute for non-commercial purposes
-* ✅ Free for personal and educational use
+* Free to use
+* Free to modify
+* Free to distribute for non-commercial purposes
+* Free for personal and educational use
 
 ### Restrictions
 
-* ❌ Commercial use prohibited
-* ❌ Cannot be used in paid products/services
-* ❌ Cannot receive funding or commercial benefit from this code
-* ❌ No redistribution in commercial applications
+* Commercial use prohibited
+* Cannot be used in paid products/services
+* Cannot receive funding or commercial benefit from this code
+* No redistribution in commercial applications
 
 **Summary**: This software is free to use for personal and non-commercial purposes only. For any form of commercial usage, explicit written permission is required.
 
