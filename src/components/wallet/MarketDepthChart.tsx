@@ -82,9 +82,9 @@ const MarketDepthChart = ({ orderBook }: MarketDepthChartProps) => {
       const depth = isBid ? data.bidDepth : data.askDepth;
       
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium">Price: {parseFloat(label).toFixed(6)} SBD</p>
-          <p className={isBid ? "text-green-600" : "text-red-600"}>
+        <div className="bg-slate-800 p-3 border border-slate-700 rounded-lg shadow-lg">
+          <p className="font-medium text-white">Price: {parseFloat(label).toFixed(6)} SBD</p>
+          <p className={isBid ? "text-green-400" : "text-red-400"}>
             {isBid ? 'Buy' : 'Sell'} Depth: {depth.toFixed(3)} STEEM
           </p>
         </div>
@@ -95,12 +95,12 @@ const MarketDepthChart = ({ orderBook }: MarketDepthChartProps) => {
 
   if (!orderBook || depthData.length === 0) {
     return (
-      <Card className="bg-white border border-gray-200 shadow-sm">
+      <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-gray-800 text-lg">Market Depth Chart</CardTitle>
+          <CardTitle className="text-white text-lg">Market Depth Chart</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-slate-400 py-8">
             Loading market depth data...
           </div>
         </CardContent>
@@ -109,24 +109,26 @@ const MarketDepthChart = ({ orderBook }: MarketDepthChartProps) => {
   }
 
   return (
-    <Card className="bg-white border border-gray-200 shadow-sm">
+    <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-gray-800 text-lg">Market Depth Chart</CardTitle>
-        <p className="text-sm text-gray-500">Combined buy and sell order depth</p>
+        <CardTitle className="text-white text-lg">Market Depth Chart</CardTitle>
+        <p className="text-sm text-slate-400">Combined buy and sell order depth</p>
       </CardHeader>
       <CardContent>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={depthData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis 
                 dataKey="price" 
                 tickFormatter={(value) => parseFloat(value).toFixed(4)}
                 className="text-xs"
+                tick={{ fill: '#94a3b8' }}
               />
               <YAxis 
                 tickFormatter={(value) => `${value.toFixed(0)}`}
                 className="text-xs"
+                tick={{ fill: '#94a3b8' }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area

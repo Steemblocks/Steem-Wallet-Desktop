@@ -5,26 +5,31 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 220 13% 13%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 13% 13%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 20% 20%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+    --accent: 20 84% 55%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 50.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 20%;
+    --ring: 217.2 91.2% 59.8%;
     --radius: 0.5rem;
+    --chart-1: 173 58% 39%;
+    --chart-2: 197 37% 24%;
+    --chart-3: 43 74% 66%;
+    --chart-4: 27 87% 67%;
+    --chart-5: 12 76% 61%;
   }
 
   * {
@@ -35,6 +40,8 @@
     @apply bg-background text-foreground font-sans;
     font-feature-settings: "cv11", "ss01";
     font-variation-settings: "opsz" 32;
+    min-width: 1024px;
+    min-height: 700px;
   }
 }
 
@@ -49,20 +56,64 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Enhanced scrollbar */
+/* Enhanced scrollbar for dark mode */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: hsl(217.2 32.6% 12%);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5);
-  border-radius: 3px;
+  background: hsl(217.2 32.6% 25%);
+  border-radius: 4px;
+  border: 2px solid hsl(217.2 32.6% 12%);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.7);
+  background: hsl(217.2 32.6% 35%);
+}
+
+/* Force dark theme on all inputs to prevent white backgrounds */
+input,
+textarea,
+select {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  color-scheme: dark;
+}
+
+/* Handle browser autofill - forces dark styling */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px hsl(222.2 84% 4.9%) inset !important;
+  -webkit-text-fill-color: hsl(210 40% 98%) !important;
+  background-color: hsl(222.2 84% 4.9%) !important;
+  caret-color: hsl(210 40% 98%) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Ensure input placeholder stays consistent */
+input::placeholder,
+textarea::placeholder {
+  color: hsl(217.9 10.6% 64.9%);
+  opacity: 1;
+}
+
+/* Force color scheme for the entire app */
+:root {
+  color-scheme: dark;
 }

@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { steemApi } from '@/services/steemApi';
@@ -19,6 +19,12 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
   const [password, setPassword] = useState('');
   const [userProposals, setUserProposals] = useState<any[]>([]);
   const [hasProposals, setHasProposals] = useState(false);
+  
+  // CRITICAL: Track transaction submissions to prevent duplicate transactions
+  const createProposalSubmittedRef = useRef(false);
+  const removeProposalSubmittedRef = useRef(false);
+  const witnessSetPropsSubmittedRef = useRef(false);
+  const witnessUpdateSubmittedRef = useRef(false);
   
   // Proposal form state
   const [proposalForm, setProposalForm] = useState({
@@ -88,7 +94,16 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       return;
     }
 
+    // CRITICAL: Prevent duplicate submissions
+    if (createProposalSubmittedRef.current || isLoading) {
+      console.log('Blocking duplicate create proposal submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    createProposalSubmittedRef.current = true;
     setIsLoading(true);
+    
     try {
       const activeKey = dsteem.PrivateKey.fromSeed(`${loggedInUser}active${password}`);
       
@@ -128,10 +143,28 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       const userCreatedProposals = allProposals.filter(p => p.creator === loggedInUser);
       setUserProposals(userCreatedProposals);
       setHasProposals(userCreatedProposals.length > 0);
-    } catch (error) {
+      setIsLoading(false);
+      createProposalSubmittedRef.current = false;
+    } catch (error: any) {
       console.error('Error creating proposal:', error);
-      toast.error('Failed to create proposal');
-    } finally {
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast.success('Proposal was already created!');
+        setProposalForm({
+          receiver: '',
+          startDate: '',
+          endDate: '',
+          dailyPayAmount: '1000',
+          subject: '',
+          permlink: ''
+        });
+        setPassword('');
+      } else {
+        toast.error('Failed to create proposal');
+        createProposalSubmittedRef.current = false;
+      }
       setIsLoading(false);
     }
   };
@@ -153,7 +186,16 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       return;
     }
 
+    // CRITICAL: Prevent duplicate submissions
+    if (removeProposalSubmittedRef.current || isLoading) {
+      console.log('Blocking duplicate remove proposal submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    removeProposalSubmittedRef.current = true;
     setIsLoading(true);
+    
     try {
       const activeKey = dsteem.PrivateKey.fromSeed(`${loggedInUser}active${password}`);
       
@@ -179,10 +221,21 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       const userCreatedProposals = allProposals.filter(p => p.creator === loggedInUser);
       setUserProposals(userCreatedProposals);
       setHasProposals(userCreatedProposals.length > 0);
-    } catch (error) {
+      setIsLoading(false);
+      removeProposalSubmittedRef.current = false;
+    } catch (error: any) {
       console.error('Error removing proposal:', error);
-      toast.error('Failed to remove proposal');
-    } finally {
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast.success('Proposal(s) already removed!');
+        setRemoveForm({ proposalIds: '' });
+        setPassword('');
+      } else {
+        toast.error('Failed to remove proposal');
+        removeProposalSubmittedRef.current = false;
+      }
       setIsLoading(false);
     }
   };
@@ -193,7 +246,16 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       return;
     }
 
+    // CRITICAL: Prevent duplicate submissions
+    if (witnessSetPropsSubmittedRef.current || isLoading) {
+      console.log('Blocking duplicate witness set properties submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    witnessSetPropsSubmittedRef.current = true;
     setIsLoading(true);
+    
     try {
       const activeKey = dsteem.PrivateKey.fromSeed(`${loggedInUser}active${password}`);
       
@@ -238,10 +300,31 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
         newSigningKey: ''
       });
       setPassword('');
-    } catch (error) {
+      setIsLoading(false);
+      witnessSetPropsSubmittedRef.current = false;
+    } catch (error: any) {
       console.error('Error updating witness properties:', error);
-      toast.error('Failed to update witness properties');
-    } finally {
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast.success('Witness properties already updated!');
+        setSetPropsForm({
+          accountCreationFee: '0.000 STEEM',
+          accountSubsidyBudget: '10000',
+          accountSubsidyDecay: '330782',
+          maximumBlockSize: '65536',
+          sbdInterestRate: '0.000 STEEM',
+          sbdExchangeRateBase: '0.000 SBD',
+          sbdExchangeRateQuote: '0.000 STEEM',
+          url: '',
+          newSigningKey: ''
+        });
+        setPassword('');
+      } else {
+        toast.error('Failed to update witness properties');
+        witnessSetPropsSubmittedRef.current = false;
+      }
       setIsLoading(false);
     }
   };
@@ -252,7 +335,16 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       return;
     }
 
+    // CRITICAL: Prevent duplicate submissions
+    if (witnessUpdateSubmittedRef.current || isLoading) {
+      console.log('Blocking duplicate witness update submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    witnessUpdateSubmittedRef.current = true;
     setIsLoading(true);
+    
     try {
       const activeKey = dsteem.PrivateKey.fromSeed(`${loggedInUser}active${password}`);
       
@@ -292,10 +384,28 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
         feeAmount: '0'
       });
       setPassword('');
-    } catch (error) {
+      setIsLoading(false);
+      witnessUpdateSubmittedRef.current = false;
+    } catch (error: any) {
       console.error('Error updating witness:', error);
-      toast.error('Failed to update witness');
-    } finally {
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast.success('Witness already updated!');
+        setUpdateForm({
+          url: '',
+          blockSigningKey: '',
+          accountCreationFeeAmount: '100000',
+          maximumBlockSize: '131072',
+          sbdInterestRate: '1000',
+          feeAmount: '0'
+        });
+        setPassword('');
+      } else {
+        toast.error('Failed to update witness');
+        witnessUpdateSubmittedRef.current = false;
+      }
       setIsLoading(false);
     }
   };
@@ -317,30 +427,30 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
 
   if (!loggedInUser) {
     return (
-      <Card>
+      <Card className="bg-slate-800/50 border border-slate-700">
         <CardHeader>
-          <CardTitle>Gov Operations</CardTitle>
-          <CardDescription>Please log in to manage witness operations</CardDescription>
+          <CardTitle className="text-white">Gov Operations</CardTitle>
+          <CardDescription className="text-slate-400">Please log in to manage witness operations</CardDescription>
         </CardHeader>
       </Card>
     );
   }
 
   return (
-    <Card>
+    <Card className="bg-slate-800/50 border border-slate-700">
       <CardHeader>
-        <CardTitle>Gov Operations</CardTitle>
-        <CardDescription>Manage witness properties, settings, and proposals</CardDescription>
+        <CardTitle className="text-white">Gov Operations</CardTitle>
+        <CardDescription className="text-slate-400">Manage witness properties, settings, and proposals</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="set-properties" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="set-properties">Set Properties (HF20+)</TabsTrigger>
-            <TabsTrigger value="witness-update">Witness Update</TabsTrigger>
-            <TabsTrigger value="create-proposal" disabled={hasProposals}>
+          <TabsList className="grid w-full grid-cols-4 bg-slate-900/50 border border-slate-700">
+            <TabsTrigger value="set-properties" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">Set Properties (HF20+)</TabsTrigger>
+            <TabsTrigger value="witness-update" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">Witness Update</TabsTrigger>
+            <TabsTrigger value="create-proposal" disabled={hasProposals} className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">
               {hasProposals ? 'Has Proposals' : 'Create Proposal'}
             </TabsTrigger>
-            <TabsTrigger value="remove-proposal" disabled={!hasProposals}>
+            <TabsTrigger value="remove-proposal" disabled={!hasProposals} className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">
               Remove Proposal
             </TabsTrigger>
           </TabsList>
@@ -348,97 +458,106 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
           <TabsContent value="set-properties" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="accountCreationFee">Account Creation Fee</Label>
+                <Label htmlFor="accountCreationFee" className="text-slate-300">Account Creation Fee</Label>
                 <Input
                   id="accountCreationFee"
                   value={setPropsForm.accountCreationFee}
                   onChange={(e) => setSetPropsForm({...setPropsForm, accountCreationFee: e.target.value})}
                   placeholder="0.000 STEEM"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="maximumBlockSize">Maximum Block Size</Label>
+                <Label htmlFor="maximumBlockSize" className="text-slate-300">Maximum Block Size</Label>
                 <Input
                   id="maximumBlockSize"
                   type="number"
                   value={setPropsForm.maximumBlockSize}
                   onChange={(e) => setSetPropsForm({...setPropsForm, maximumBlockSize: e.target.value})}
                   placeholder="65536"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountSubsidyBudget">Account Subsidy Budget</Label>
+                <Label htmlFor="accountSubsidyBudget" className="text-slate-300">Account Subsidy Budget</Label>
                 <Input
                   id="accountSubsidyBudget"
                   type="number"
                   value={setPropsForm.accountSubsidyBudget}
                   onChange={(e) => setSetPropsForm({...setPropsForm, accountSubsidyBudget: e.target.value})}
                   placeholder="10000"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountSubsidyDecay">Account Subsidy Decay</Label>
+                <Label htmlFor="accountSubsidyDecay" className="text-slate-300">Account Subsidy Decay</Label>
                 <Input
                   id="accountSubsidyDecay"
                   type="number"
                   value={setPropsForm.accountSubsidyDecay}
                   onChange={(e) => setSetPropsForm({...setPropsForm, accountSubsidyDecay: e.target.value})}
                   placeholder="330782"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="sbdExchangeRateBase">SBD Exchange Rate Base</Label>
+                <Label htmlFor="sbdExchangeRateBase" className="text-slate-300">SBD Exchange Rate Base</Label>
                 <Input
                   id="sbdExchangeRateBase"
                   value={setPropsForm.sbdExchangeRateBase}
                   onChange={(e) => setSetPropsForm({...setPropsForm, sbdExchangeRateBase: e.target.value})}
                   placeholder="0.000 SBD"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="sbdExchangeRateQuote">SBD Exchange Rate Quote</Label>
+                <Label htmlFor="sbdExchangeRateQuote" className="text-slate-300">SBD Exchange Rate Quote</Label>
                 <Input
                   id="sbdExchangeRateQuote"
                   value={setPropsForm.sbdExchangeRateQuote}
                   onChange={(e) => setSetPropsForm({...setPropsForm, sbdExchangeRateQuote: e.target.value})}
                   placeholder="0.000 STEEM"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="witnessUrl">Witness URL</Label>
+              <Label htmlFor="witnessUrl" className="text-slate-300">Witness URL</Label>
               <Input
                 id="witnessUrl"
                 value={setPropsForm.url}
                 onChange={(e) => setSetPropsForm({...setPropsForm, url: e.target.value})}
                 placeholder="https://steemit.com"
+                className="bg-slate-800 border-slate-700 text-white"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="newSigningKey">New Signing Key</Label>
+              <Label htmlFor="newSigningKey" className="text-slate-300">New Signing Key</Label>
               <Input
                 id="newSigningKey"
                 value={setPropsForm.newSigningKey}
                 onChange={(e) => setSetPropsForm({...setPropsForm, newSigningKey: e.target.value})}
                 placeholder="STM..."
+                className="bg-slate-800 border-slate-700 text-white"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="setPropsPassword">Active Key Password</Label>
+              <Label htmlFor="setPropsPassword" className="text-slate-300">Active Key Password</Label>
               <Input
                 id="setPropsPassword"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                className="bg-slate-800 border-slate-700 text-white"
               />
             </div>
 
@@ -462,76 +581,83 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
           <TabsContent value="witness-update" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="updateUrl">Witness URL</Label>
+                <Label htmlFor="updateUrl" className="text-slate-300">Witness URL</Label>
                 <Input
                   id="updateUrl"
                   value={updateForm.url}
                   onChange={(e) => setUpdateForm({...updateForm, url: e.target.value})}
                   placeholder="witness-category/my-witness"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="blockSigningKey">Block Signing Key</Label>
+                <Label htmlFor="blockSigningKey" className="text-slate-300">Block Signing Key</Label>
                 <Input
                   id="blockSigningKey"
                   value={updateForm.blockSigningKey}
                   onChange={(e) => setUpdateForm({...updateForm, blockSigningKey: e.target.value})}
                   placeholder="STM8LoQjQqJHvotqBo7HjnqmUbFW9oJ2theyqonzUd9DdJ7YYHsvD"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="updateAccountCreationFee">Account Creation Fee (amount)</Label>
+                <Label htmlFor="updateAccountCreationFee" className="text-slate-300">Account Creation Fee (amount)</Label>
                 <Input
                   id="updateAccountCreationFee"
                   value={updateForm.accountCreationFeeAmount}
                   onChange={(e) => setUpdateForm({...updateForm, accountCreationFeeAmount: e.target.value})}
                   placeholder="100000"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="updateMaximumBlockSize">Maximum Block Size</Label>
+                <Label htmlFor="updateMaximumBlockSize" className="text-slate-300">Maximum Block Size</Label>
                 <Input
                   id="updateMaximumBlockSize"
                   type="number"
                   value={updateForm.maximumBlockSize}
                   onChange={(e) => setUpdateForm({...updateForm, maximumBlockSize: e.target.value})}
                   placeholder="131072"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="updateSbdInterestRate">SBD Interest Rate</Label>
+                <Label htmlFor="updateSbdInterestRate" className="text-slate-300">SBD Interest Rate</Label>
                 <Input
                   id="updateSbdInterestRate"
                   type="number"
                   value={updateForm.sbdInterestRate}
                   onChange={(e) => setUpdateForm({...updateForm, sbdInterestRate: e.target.value})}
                   placeholder="1000"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="updateFeeAmount">Fee Amount</Label>
+                <Label htmlFor="updateFeeAmount" className="text-slate-300">Fee Amount</Label>
                 <Input
                   id="updateFeeAmount"
                   value={updateForm.feeAmount}
                   onChange={(e) => setUpdateForm({...updateForm, feeAmount: e.target.value})}
                   placeholder="0"
+                  className="bg-slate-800 border-slate-700 text-white"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="updatePassword">Active Key Password</Label>
+              <Label htmlFor="updatePassword" className="text-slate-300">Active Key Password</Label>
               <Input
                 id="updatePassword"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                className="bg-slate-800 border-slate-700 text-white"
               />
             </div>
 
@@ -555,12 +681,12 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
           <TabsContent value="create-proposal" className="space-y-4">
             {hasProposals ? (
               <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">You already have active proposals</p>
+                <p className="text-slate-400 mb-4">You already have active proposals</p>
                 <div className="space-y-2">
                   {userProposals.map(proposal => (
-                    <div key={proposal.id} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="font-medium">{proposal.subject}</div>
-                      <div className="text-sm text-gray-500">ID: {proposal.proposal_id} | Daily Pay: {proposal.daily_pay}</div>
+                    <div key={proposal.id} className="p-3 bg-slate-700/50 rounded-lg">
+                      <div className="font-medium text-white">{proposal.subject}</div>
+                      <div className="text-sm text-slate-400">ID: {proposal.proposal_id} | Daily Pay: {proposal.daily_pay}</div>
                     </div>
                   ))}
                 </div>
@@ -569,75 +695,82 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="receiver">Receiver *</Label>
+                    <Label htmlFor="receiver" className="text-slate-300">Receiver *</Label>
                     <Input
                       id="receiver"
                       value={proposalForm.receiver}
                       onChange={(e) => setProposalForm({...proposalForm, receiver: e.target.value})}
                       placeholder="username"
+                      className="bg-slate-800 border-slate-700 text-white"
                     />
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="dailyPayAmount">Daily Pay Amount (SBD) *</Label>
+                    <Label htmlFor="dailyPayAmount" className="text-slate-300">Daily Pay Amount (SBD) *</Label>
                     <Input
                       id="dailyPayAmount"
                       type="number"
                       value={proposalForm.dailyPayAmount}
                       onChange={(e) => setProposalForm({...proposalForm, dailyPayAmount: e.target.value})}
                       placeholder="1000"
+                      className="bg-slate-800 border-slate-700 text-white"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="startDate">Start Date *</Label>
+                    <Label htmlFor="startDate" className="text-slate-300">Start Date *</Label>
                     <Input
                       id="startDate"
                       type="datetime-local"
                       value={proposalForm.startDate}
                       onChange={(e) => setProposalForm({...proposalForm, startDate: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="endDate">End Date *</Label>
+                    <Label htmlFor="endDate" className="text-slate-300">End Date *</Label>
                     <Input
                       id="endDate"
                       type="datetime-local"
                       value={proposalForm.endDate}
                       onChange={(e) => setProposalForm({...proposalForm, endDate: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="subject">Subject *</Label>
+                  <Label htmlFor="subject" className="text-slate-300">Subject *</Label>
                   <Input
                     id="subject"
                     value={proposalForm.subject}
                     onChange={(e) => setProposalForm({...proposalForm, subject: e.target.value})}
                     placeholder="Proposal title"
+                    className="bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="permlink">Permlink *</Label>
+                  <Label htmlFor="permlink" className="text-slate-300">Permlink *</Label>
                   <Input
                     id="permlink"
                     value={proposalForm.permlink}
                     onChange={(e) => setProposalForm({...proposalForm, permlink: e.target.value})}
                     placeholder="my-proposal-permlink"
+                    className="bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="proposalPassword">Active Key Password</Label>
+                  <Label htmlFor="proposalPassword" className="text-slate-300">Active Key Password</Label>
                   <Input
                     id="proposalPassword"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
+                    className="bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
 
@@ -655,18 +788,18 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
           <TabsContent value="remove-proposal" className="space-y-4">
             {!hasProposals ? (
               <div className="text-center py-8">
-                <p className="text-gray-600">You don't have any proposals to remove</p>
+                <p className="text-slate-400">You don't have any proposals to remove</p>
               </div>
             ) : (
               <>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Your Active Proposals</Label>
+                    <Label className="text-slate-300">Your Active Proposals</Label>
                     <div className="space-y-2">
                       {userProposals.map(proposal => (
-                        <div key={proposal.id} className="p-3 bg-gray-50 rounded-lg">
-                          <div className="font-medium">{proposal.subject}</div>
-                          <div className="text-sm text-gray-500">
+                        <div key={proposal.id} className="p-3 bg-slate-700/50 rounded-lg">
+                          <div className="font-medium text-white">{proposal.subject}</div>
+                          <div className="text-sm text-slate-400">
                             ID: {proposal.proposal_id} | Daily Pay: {proposal.daily_pay} | 
                             Status: {steemApi.getProposalStatus(proposal.start_date, proposal.end_date)}
                           </div>
@@ -676,24 +809,26 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="proposalIds">Proposal IDs to Remove</Label>
+                    <Label htmlFor="proposalIds" className="text-slate-300">Proposal IDs to Remove</Label>
                     <Input
                       id="proposalIds"
                       value={removeForm.proposalIds}
                       onChange={(e) => setRemoveForm({...removeForm, proposalIds: e.target.value})}
                       placeholder="1, 2, 3 (comma separated)"
+                      className="bg-slate-800 border-slate-700 text-white"
                     />
-                    <p className="text-sm text-gray-500">Enter proposal IDs separated by commas</p>
+                    <p className="text-sm text-slate-400">Enter proposal IDs separated by commas</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="removePassword">Active Key Password</Label>
+                    <Label htmlFor="removePassword" className="text-slate-300">Active Key Password</Label>
                     <Input
                       id="removePassword"
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
+                      className="bg-slate-800 border-slate-700 text-white"
                     />
                   </div>
 

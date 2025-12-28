@@ -58,3 +58,26 @@ export const getDaysUntilNextWithdrawal = (nextWithdrawalDate: string): number =
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return Math.max(0, diffDays);
 };
+
+/**
+ * Opens a URL in the system's default browser using Tauri's opener plugin.
+ * Falls back to window.open for non-Tauri environments.
+ *
+ * @param {string} url The URL to open
+ */
+export const openExternalUrl = async (url: string): Promise<void> => {
+  try {
+    // Check if running in Tauri environment
+    if (window.__TAURI_INTERNALS__) {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(url);
+    } else {
+      // Fallback for browser/dev environment
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  } catch (error) {
+    console.error('Error opening URL:', error);
+    // Fallback to window.open if Tauri API fails
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};

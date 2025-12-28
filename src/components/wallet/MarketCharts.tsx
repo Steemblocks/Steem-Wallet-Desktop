@@ -56,8 +56,8 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium">Time: {label}</p>
+        <div className="bg-slate-800 p-3 border border-slate-700 rounded-lg shadow-lg">
+          <p className="font-medium text-white">Time: {label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} style={{ color: entry.color }}>
               {entry.name}: {entry.value.toFixed(entry.name.includes('Price') || entry.name.includes('High') || entry.name.includes('Low') || entry.name.includes('Open') ? 6 : 0)}
@@ -76,22 +76,22 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
   if (chartData.priceData.length === 0) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-gray-800 text-lg">24H Price Chart</CardTitle>
+            <CardTitle className="text-white text-lg">24H Price Chart</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-gray-500 py-8">
+            <div className="text-center text-slate-400 py-8">
               Loading 24-hour price data...
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-gray-800 text-lg">24H Volume Chart</CardTitle>
+            <CardTitle className="text-white text-lg">24H Volume Chart</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-gray-500 py-8">
+            <div className="text-center text-slate-400 py-8">
               Loading volume data...
             </div>
           </CardContent>
@@ -103,14 +103,14 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* 24H Price Chart */}
-      <Card className="bg-white border border-gray-200 shadow-sm">
+      <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-gray-800 text-lg">24H Price Chart</CardTitle>
+          <CardTitle className="text-white text-lg">24H Price Chart</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold" style={{ color: '#07d7a9' }}>
               {currentPrice.toFixed(6)} SBD
             </span>
-            <span className={`text-sm ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <span className={`text-sm ${percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {percentChange >= 0 ? '+' : ''}{(percentChange * 100).toFixed(2)}%
             </span>
           </div>
@@ -119,15 +119,16 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData.priceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis 
                   dataKey="time" 
                   className="text-xs"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
                 />
                 <YAxis 
                   tickFormatter={(value) => value.toFixed(6)}
                   className="text-xs"
+                  tick={{ fill: '#94a3b8' }}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Line
@@ -163,10 +164,10 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
       </Card>
 
       {/* 24H Volume Chart */}
-      <Card className="bg-white border border-gray-200 shadow-sm">
+      <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-gray-800 text-lg">24H Volume Chart</CardTitle>
-          <div className="text-sm text-gray-500">
+          <CardTitle className="text-white text-lg">24H Volume Chart</CardTitle>
+          <div className="text-sm text-slate-400">
             Hourly trading volume from market history
           </div>
         </CardHeader>
@@ -174,15 +175,16 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData.volumeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis 
                   dataKey="time" 
                   className="text-xs"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
                 />
                 <YAxis 
                   tickFormatter={(value) => `${value.toFixed(0)}`}
                   className="text-xs"
+                  tick={{ fill: '#94a3b8' }}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar

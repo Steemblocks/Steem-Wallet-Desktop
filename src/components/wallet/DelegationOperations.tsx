@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,23 +7,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Users, TrendingUp, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Users, TrendingUp, Loader2, Zap, Send, CheckCircle2, AlertCircle, Handshake } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDelegations } from "@/hooks/useDelegations";
-import { steemOperations } from '@/services/steemOperations';
-import * as dsteem from 'dsteem';
+import { useSteemAccount, formatWalletData } from "@/hooks/useSteemAccount";
+import { steemApi } from "@/services/steemApi";
+import { SecureStorageFactory } from '@/services/secureStorage';
 import DelegationEditDialog from "./DelegationEditDialog";
+import DelegationConfirmDialog from "./DelegationConfirmDialog";
+import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
 
 const DelegationOperations = () => {
   const { username: urlUsername } = useParams();
   const [delegateAmount, setDelegateAmount] = useState("");
   const [delegateRecipient, setDelegateRecipient] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [displayUsername, setDisplayUsername] = useState<string | null>(null);
+  const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
+  const [availableSP, setAvailableSP] = useState<number>(0);
+  const [expiringDelegationsSP, setExpiringDelegationsSP] = useState<number>(0);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingVestingShares, setPendingVestingShares] = useState("");
   const { toast } = useToast();
 
-  // Get the account to display (from URL or localStorage)
-  const displayUsername = urlUsername?.replace('@', '') || localStorage.getItem('steem_username');
-  const loggedInUsername = localStorage.getItem('steem_username');
+  // Load usernames from secure storage
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const user = await storage.getItem('steem_username');
+        setLoggedInUsername(user);
+        setDisplayUsername(urlUsername?.replace('@', '') || user);
+      } catch (error) {
+        console.error('Error loading user data from storage:', error);
+      }
+    };
+    loadUserData();
+  }, [urlUsername]);
+
   const isOwnAccount = loggedInUsername && displayUsername === loggedInUsername;
 
   const {
@@ -35,122 +55,100 @@ const DelegationOperations = () => {
     refetchAll
   } = useDelegations(displayUsername);
 
-  const handleDelegate = async () => {
-    if (!delegateRecipient || !delegateAmount || !loggedInUsername || !isOwnAccount) return;
+  // Get account data for received delegations
+  const { data: accountData, isLoading: accountLoading } = useSteemAccount(displayUsername);
 
-    const loginMethod = localStorage.getItem('steem_login_method');
-    setIsProcessing(true);
-
-    try {
-      // Convert SP to VESTS
-      const steemAmount = parseFloat(delegateAmount);
-      const vestsAmount = (steemAmount * 1000000) / steemPerMvests;
-      const vestingShares = `${vestsAmount.toFixed(6)} VESTS`;
-
-      if (loginMethod === 'keychain') {
-        await handleKeychainDelegation(loggedInUsername, delegateRecipient, vestingShares);
-      } else {
-        await handlePrivateKeyDelegation(loggedInUsername, delegateRecipient, vestingShares);
-      }
-    } catch (error) {
-      console.error('Delegation error:', error);
-      toast({
-        title: "Operation Failed",
-        description: "Failed to delegate STEEM Power. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleKeychainDelegation = async (delegator: string, delegatee: string, vestingShares: string) => {
-    if (!window.steem_keychain) {
-      toast({
-        title: "Keychain Not Available",
-        description: "Steem Keychain not found",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    window.steem_keychain.requestBroadcast(
-      delegator,
-      [['delegate_vesting_shares', { 
-        delegator, 
-        delegatee, 
-        vesting_shares: vestingShares
-      }]],
-      'Active',
-      (response: any) => {
-        if (response.success) {
-          toast({
-            title: "Delegation Successful",
-            description: `Delegated ${delegateAmount} SP to @${delegatee}`,
-          });
-          setDelegateRecipient("");
-          setDelegateAmount("");
-          refetchAll();
-        } else {
-          toast({
-            title: "Operation Failed",
-            description: response.message || "Transaction was rejected",
-            variant: "destructive",
-          });
+  // Calculate available SP for new delegation when account data changes
+  useEffect(() => {
+    const calculateAvailableSP = async () => {
+      if (!accountData || !loggedInUsername) return;
+      
+      try {
+        // Get wallet data for SP and delegated amounts
+        const walletData = await formatWalletData(accountData);
+        const totalSP = parseFloat(walletData.steemPower);
+        const delegatedSP = parseFloat(walletData.delegated);
+        
+        // Fetch expiring delegations (cancelled delegations in cooldown period)
+        let expiringSP = 0;
+        try {
+          const expiringDelegations = await steemApi.getExpiringVestingDelegations(accountData.name);
+          if (expiringDelegations && expiringDelegations.length > 0) {
+            const steemPerMvestsValue = await getSteemPerMvests();
+            // Sum up all expiring delegations in VESTS and convert to SP
+            const totalExpiringVests = expiringDelegations.reduce((sum, delegation) => {
+              const vests = parseFloat(delegation.vesting_shares?.split(' ')[0] || '0');
+              return sum + vests;
+            }, 0);
+            expiringSP = vestsToSteem(totalExpiringVests, steemPerMvestsValue);
+          }
+        } catch (error) {
+          console.error('Error fetching expiring delegations:', error);
         }
+        
+        setExpiringDelegationsSP(expiringSP);
+        // Available SP = Total SP - Delegated SP - Expiring Delegations SP
+        const available = Math.max(0, totalSP - delegatedSP - expiringSP);
+        setAvailableSP(available);
+      } catch (error) {
+        console.error('Error calculating available SP:', error);
+        setAvailableSP(0);
       }
-    );
+    };
+    
+    calculateAvailableSP();
+  }, [accountData, loggedInUsername]);
+
+  const handleDelegate = () => {
+    if (!delegateRecipient || !delegateAmount || !loggedInUsername || !isOwnAccount) return;
+    
+    // Convert SP to VESTS for the confirmation dialog
+    const steemAmount = parseFloat(delegateAmount);
+    const vestsAmount = (steemAmount * 1000000) / steemPerMvests;
+    const vestingShares = `${vestsAmount.toFixed(6)} VESTS`;
+    
+    setPendingVestingShares(vestingShares);
+    setShowConfirmDialog(true);
   };
 
-  const handlePrivateKeyDelegation = async (delegator: string, delegatee: string, vestingShares: string) => {
-    const activeKey = localStorage.getItem('steem_active_key');
-    const ownerKey = localStorage.getItem('steem_owner_key');
-    
-    let privateKeyString = activeKey || ownerKey;
-    
-    if (!privateKeyString) {
-      toast({
-        title: "Private Key Not Found",
-        description: "Active or Owner key required for delegation operations",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const privateKey = dsteem.PrivateKey.fromString(privateKeyString);
-    
-    await steemOperations.delegateVestingShares({
-      delegator,
-      delegatee,
-      vesting_shares: vestingShares
-    }, privateKey);
-    
-    toast({
-      title: "Delegation Successful",
-      description: `Delegated ${delegateAmount} SP to @${delegatee}`,
-    });
+  const handleDelegationSuccess = () => {
     setDelegateRecipient("");
     setDelegateAmount("");
+    setPendingVestingShares("");
     refetchAll();
   };
 
   if (error) {
     return (
-      <Card className="bg-red-50 border-red-200">
-        <CardContent className="p-4">
-          <p className="text-red-800">Error loading delegation data: {error.message}</p>
+      <Card className="bg-gradient-to-br from-red-900/50 to-red-950/50 border border-red-800 shadow-md">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-300 mb-1">Error Loading Delegation Data</h3>
+              <p className="text-red-400 text-sm">{error.message}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Zap className="w-6 h-6 text-steemit-500" />
+          <h2 className="text-2xl font-bold text-white">Delegation Manager</h2>
+        </div>
+        <p className="text-slate-400 text-sm">Manage your STEEM Power delegations and help the community grow</p>
+      </div>
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-white shadow-sm border border-gray-200">
+        <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-800/50 shadow-sm border border-slate-700 rounded-lg p-1">
           <TabsTrigger 
             value="overview" 
-            className="data-[state=active]:text-white data-[state=active]:bg-[#07d7a9] text-xs sm:text-sm"
+            className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-xs sm:text-sm font-medium rounded-md"
           >
             <TrendingUp className="w-4 h-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">Overview</span>
@@ -158,128 +156,206 @@ const DelegationOperations = () => {
           </TabsTrigger>
           <TabsTrigger 
             value="outgoing" 
-            className="data-[state=active]:text-white data-[state=active]:bg-[#07d7a9] text-xs sm:text-sm"
+            className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-xs sm:text-sm font-medium rounded-md"
           >
             <ArrowRight className="w-4 h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">My Delegations</span>
-            <span className="sm:hidden">My Del.</span>
+            <span className="hidden sm:inline">Outgoing</span>
+            <span className="sm:hidden">Out</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
+        <TabsContent value="overview" className="space-y-4 mt-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card className="bg-white border border-gray-200 shadow-sm">
+            <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-gray-800 text-lg">Total Delegated Out</CardTitle>
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <ArrowRight className="w-4 h-4 text-amber-400" />
+                  Total Delegated Out
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
                   <div className="animate-pulse">
-                    <div className="h-8 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded"></div>
+                    <div className="h-8 bg-slate-700 rounded mb-2"></div>
+                    <div className="h-4 bg-slate-700 rounded"></div>
                   </div>
                 ) : (
                   <>
-                    <p className="text-xl sm:text-2xl font-bold" style={{ color: '#07d7a9' }}>
+                    <p className="text-xl sm:text-2xl font-bold text-amber-400">
                       {totalDelegatedOut.toFixed(3)} SP
                     </p>
-                    <p className="text-xs sm:text-sm text-gray-500">To {outgoingDelegations.length} accounts</p>
+                    <p className="text-xs sm:text-sm text-slate-400">To {outgoingDelegations.length} accounts</p>
                   </>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="bg-white border border-gray-200 shadow-sm">
+            <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-gray-800 text-lg">Available to Delegate</CardTitle>
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <ArrowLeft className="w-4 h-4 text-steemit-500" />
+                  Total Received
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-xl sm:text-2xl font-bold" style={{ color: '#07d7a9' }}>
-                  Check Wallet
-                </p>
-                <p className="text-xs sm:text-sm text-gray-500">Your current STEEM Power</p>
+                {accountLoading || isLoading ? (
+                  <div className="animate-pulse">
+                    <div className="h-8 bg-slate-700 rounded mb-2"></div>
+                    <div className="h-4 bg-slate-700 rounded"></div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xl sm:text-2xl font-bold" style={{ color: '#07d7a9' }}>
+                      {accountData && steemPerMvests > 0 
+                        ? ((steemApi.parseAmount(accountData.received_vesting_shares) / 1000000) * steemPerMvests).toFixed(3)
+                        : '0.000'} SP
+                    </p>
+                    <p className="text-xs sm:text-sm text-slate-400">Delegated to you by others</p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
 
           {/* Only show delegation form for logged-in users on their own account */}
           {isOwnAccount && (
-            <Card className="bg-white border border-gray-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-gray-800 flex items-center gap-2 text-lg sm:text-xl">
-                  <Users className="w-5 h-5" style={{ color: '#07d7a9' }} />
-                  New Delegation
-                </CardTitle>
-                <CardDescription className="text-gray-500 text-sm sm:text-base">
-                  Delegate STEEM Power to support content creators and curators
-                </CardDescription>
+            <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 shadow-lg overflow-hidden relative">
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-steemit-500/10 rounded-full -mr-20 -mt-20"></div>
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-steemit-500/5 rounded-full -ml-16 -mb-16"></div>
+              
+              <CardHeader className="relative z-10 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-steemit-500/20">
+                      <Send className="w-5 h-5 text-steemit-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-white text-lg sm:text-xl">New Delegation</CardTitle>
+                      <CardDescription className="text-slate-400 text-sm">
+                        Share your voting power with others
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {/* Available SP Badge */}
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide">Available</p>
+                    <p className="text-lg font-bold text-steemit-400">{availableSP.toFixed(3)} <span className="text-sm font-normal text-slate-400">SP</span></p>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              
+              <CardContent className="space-y-5 relative z-10">
+                {/* Expiring delegations notice */}
+                {expiringDelegationsSP > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+                    <p className="text-xs text-amber-300">
+                      <span className="font-semibold">{expiringDelegationsSP.toFixed(3)} SP</span> returning from cancelled delegations (~5 days)
+                    </p>
+                  </div>
+                )}
+
+                {/* Input Fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="delegate-recipient" className="text-gray-700">Recipient Username</Label>
-                    <Input
-                      id="delegate-recipient"
-                      value={delegateRecipient}
-                      onChange={(e) => setDelegateRecipient(e.target.value)}
-                      placeholder="username"
-                      className="border-gray-300"
-                    />
+                    <div className="flex items-center justify-between h-5">
+                      <Label htmlFor="delegate-recipient" className="text-slate-300 text-sm font-medium">
+                        Recipient
+                      </Label>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">@</span>
+                      <Input
+                        id="delegate-recipient"
+                        value={delegateRecipient}
+                        onChange={(e) => setDelegateRecipient(e.target.value)}
+                        placeholder="username"
+                        className="bg-slate-900/50 border-slate-600 text-white pl-8 focus:border-steemit-500 focus:ring-steemit-500/20"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="delegate-amount" className="text-gray-700">Amount (SP)</Label>
-                    <Input
-                      id="delegate-amount"
-                      value={delegateAmount}
-                      onChange={(e) => setDelegateAmount(e.target.value)}
-                      placeholder="0.000"
-                      type="number"
-                      step="0.001"
-                      className="border-gray-300"
-                    />
+                    <div className="flex items-center justify-between h-5">
+                      <Label htmlFor="delegate-amount" className="text-slate-300 text-sm font-medium">
+                        Amount
+                      </Label>
+                      <button 
+                        type="button"
+                        onClick={() => setDelegateAmount(availableSP.toFixed(3))}
+                        className="text-xs text-steemit-400 hover:text-steemit-300 transition-colors cursor-pointer hover:underline"
+                      >
+                        Use Max
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="delegate-amount"
+                        value={delegateAmount}
+                        onChange={(e) => setDelegateAmount(e.target.value)}
+                        placeholder="0.000"
+                        type="number"
+                        step="0.001"
+                        min="1"
+                        max={availableSP}
+                        className="bg-slate-900/50 border-slate-600 text-white pr-12 focus:border-steemit-500 focus:ring-steemit-500/20"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">SP</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Minimum: 1 SP</p>
                   </div>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 p-3 sm:p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-800 mb-2 text-sm sm:text-base">💡 Delegation Benefits:</h4>
-                  <ul className="text-xs sm:text-sm text-blue-700 space-y-1">
-                    <li>• Help others with voting power</li>
-                    <li>• Support content creators and curators</li>
-                    <li>• Can be removed anytime (7-day return period)</li>
-                    <li>• You maintain ownership of your SP</li>
-                  </ul>
+                {/* Benefits Section */}
+                <div className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4 text-steemit-400" />
+                    <h4 className="font-medium text-slate-200 text-sm">Why Delegate?</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-steemit-500" />
+                      <span>Share voting power</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-steemit-500" />
+                      <span>Support creators</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-steemit-500" />
+                      <span>Revoke anytime</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-steemit-500" />
+                      <span>Keep ownership</span>
+                    </div>
+                  </div>
                 </div>
 
+                {/* Submit Button */}
                 <Button 
                   onClick={handleDelegate} 
-                  className="w-full text-white text-sm sm:text-base"
-                  style={{ backgroundColor: '#07d7a9' }}
-                  disabled={!delegateRecipient || !delegateAmount || isProcessing}
+                  className="w-full h-11 text-white font-medium text-sm sm:text-base bg-gradient-to-r from-steemit-500 to-steemit-600 hover:from-steemit-600 hover:to-steemit-700 shadow-lg shadow-steemit-500/20 transition-all duration-200"
+                  disabled={!delegateRecipient || !delegateAmount || parseFloat(delegateAmount) < 0.5 || parseFloat(delegateAmount) > availableSP}
                 >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Delegating...
-                    </>
-                  ) : (
-                    'Delegate STEEM Power'
-                  )}
+                  <Handshake className="w-4 h-4 mr-2" />
+                  Delegate STEEM Power
                 </Button>
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
-        <TabsContent value="outgoing" className="space-y-4">
-          <Card className="bg-white border border-gray-200 shadow-sm">
+        <TabsContent value="outgoing" className="space-y-4 mt-6">
+          <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-gray-800 text-lg sm:text-xl">
+              <CardTitle className="text-white text-lg sm:text-xl">
                 My Delegations
                 {displayUsername && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">by @{displayUsername}</span>
+                  <span className="text-sm font-normal text-slate-400 ml-2">by @{displayUsername}</span>
                 )}
               </CardTitle>
-              <CardDescription className="text-gray-500 text-sm sm:text-base">
+              <CardDescription className="text-slate-400 text-sm sm:text-base">
                 STEEM Power delegated to others
               </CardDescription>
             </CardHeader>
@@ -287,34 +363,34 @@ const DelegationOperations = () => {
               {isLoading ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4 animate-pulse">
+                    <div key={index} className="border border-slate-700 rounded-lg p-3 sm:p-4 animate-pulse">
                       <div className="flex justify-between items-center">
                         <div className="space-y-2">
-                          <div className="h-4 bg-gray-200 rounded w-24"></div>
-                          <div className="h-3 bg-gray-200 rounded w-32"></div>
+                          <div className="h-4 bg-slate-700 rounded w-24"></div>
+                          <div className="h-3 bg-slate-700 rounded w-32"></div>
                         </div>
-                        <div className="h-8 bg-gray-200 rounded w-16"></div>
+                        <div className="h-8 bg-slate-700 rounded w-16"></div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : outgoingDelegations.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">No delegations found</p>
+                  <p className="text-slate-400">No delegations found</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {outgoingDelegations.map((delegation, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                    <div key={index} className="border border-slate-700 rounded-lg p-3 sm:p-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-gray-900 truncate text-sm sm:text-base">@{delegation.delegatee}</span>
+                            <span className="font-semibold text-white truncate text-sm sm:text-base">@{delegation.delegatee}</span>
                             <Badge variant="outline" className="text-[#07d7a9] border-[#07d7a9] text-xs">
                               Active
                             </Badge>
                           </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-gray-500">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-slate-400">
                             <span className="font-medium">{delegation.steemPower} SP</span>
                             <span className="hidden sm:inline">•</span>
                             <span>Since {delegation.formattedDate}</span>
@@ -338,7 +414,19 @@ const DelegationOperations = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
       </Tabs>
+
+      {/* Delegation Confirmation Dialog */}
+      <DelegationConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        delegator={loggedInUsername || ""}
+        delegatee={delegateRecipient}
+        amount={delegateAmount}
+        vestingShares={pendingVestingShares}
+        onSuccess={handleDelegationSuccess}
+      />
     </div>
   );
 };

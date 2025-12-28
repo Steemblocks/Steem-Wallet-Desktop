@@ -1,55 +1,66 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
 import WalletHeader from "@/components/layout/WalletHeader";
-import WalletNavigation from "@/components/layout/WalletNavigation";
 import WalletOverview from "@/components/wallet/WalletOverview";
-import WalletSkeleton from "@/components/wallet/WalletSkeleton";
+import AppLoadingScreen from "@/components/wallet/AppLoadingScreen";
 import WitnessOperations from "@/components/wallet/WitnessOperations";
 import DelegationOperations from "@/components/wallet/DelegationOperations";
 import AccountOperations from "@/components/wallet/AccountOperations";
 import MarketOperations from "@/components/wallet/MarketOperations";
 import GovernanceOperations from "@/components/wallet/GovernanceOperations";
 import TransferPopup from "@/components/wallet/TransferPopup";
-import { useSteemAccount, formatWalletData, WalletData } from "@/hooks/useSteemAccount";
-import { useDelegations } from "@/hooks/useDelegations";
+import AppLockSetupDialog from "@/components/wallet/AppLockSetupDialog";
+import AppLockScreen from "@/components/wallet/AppLockScreen";
+import WelcomePage from "@/components/wallet/WelcomePage";
+import { useWalletData } from "@/contexts/WalletDataContext";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
-
-type ViewMode = "grid" | "list";
-
-const defaultWalletData: WalletData = {
-  steem: "0.000",
-  steemPower: "0.000",
-  sbd: "0.000",
-  savings: {
-    steem: "0.000",
-    sbd: "0.000"
-  },
-  delegated: "0.000",
-  received: "0.000",
-  reputation: 25,
-  votingPower: 100,
-  resourceCredits: 100,
-  accountValue: "0.00",
-  usdValue: "0.00",
-  steemPrice: 0.25,
-  sbdPrice: 1.0
-};
+import { useAutoLock } from "@/hooks/useAutoLock";
+import { SecureStorageFactory } from '@/services/secureStorage';
+import { AppLockService } from '@/services/appLockService';
+import { accountManager } from '@/services/accountManager';
+import { AlertCircle, UserX, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("overview");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [walletData, setWalletData] = useState<WalletData>(defaultWalletData);
   const [isTransferPopupOpen, setIsTransferPopupOpen] = useState(false);
-  const [loggedInUser, setLoggedInUser] = useState<string | null>(null);
-  const [loginMethod, setLoginMethod] = useState<'keychain' | 'privatekey' | 'masterpassword' | null>(null);
+  const [isPowerDownPopupOpen, setIsPowerDownPopupOpen] = useState(false);
+  const [isPowerUpPopupOpen, setIsPowerUpPopupOpen] = useState(false);
+  const [isSavingsPopupOpen, setIsSavingsPopupOpen] = useState(false);
+  const [savingsPopupCurrency, setSavingsPopupCurrency] = useState<'STEEM' | 'SBD'>('STEEM');
+  const [isWithdrawSavingsPopupOpen, setIsWithdrawSavingsPopupOpen] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<'privatekey' | 'masterpassword' | null>(null);
+
+  // App lock states
+  const [isAppLockSetup, setIsAppLockSetup] = useState<boolean | null>(null); // null = loading
+  const [isAppLocked, setIsAppLocked] = useState(true); // Start locked until verified
+  const [showSetupDialog, setShowSetupDialog] = useState(false);
 
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const { toast } = useToast();
+  
+  // Use centralized wallet data context
+  const { 
+    data: walletContextData,
+    isInitialLoading,
+    isRefreshing,
+    loadingProgress,
+    loadingStage,
+    error,
+    refreshAll,
+    setSelectedAccount,
+    selectedAccount: contextSelectedAccount,
+    loggedInUser,
+    setLoggedInUser
+  } = useWalletData();
+
+  // Extract data from context
+  const accountData = walletContextData.account;
+  const walletData = walletContextData.walletData;
+  const outgoingDelegations = walletContextData.outgoingDelegations;
   
   let username = '';
   if (location.pathname === '/') {
@@ -61,21 +72,149 @@ const Index = () => {
   }
   
   const selectedAccount = username || loggedInUser || '';
-  const { toast } = useToast();
   
-  const { data: accountData, isLoading, error, refetch } = useSteemAccount(selectedAccount);
-  
-  // Get delegation data for the selected account
-  const { outgoingDelegations } = useDelegations(selectedAccount);
-
+  // Check if app lock is set up on mount
   useEffect(() => {
-    const savedUsername = localStorage.getItem('steem_username');
-    const savedLoginMethod = localStorage.getItem('steem_login_method') as 'keychain' | 'privatekey' | 'masterpassword' | null;
-    
-    if (savedUsername && savedLoginMethod) {
-      setLoggedInUser(savedUsername);
-      setLoginMethod(savedLoginMethod);
+    const checkAppLockSetup = async () => {
+      try {
+        const appLock = AppLockService.getInstance();
+        const isSetup = await appLock.isSetupComplete();
+        
+        if (!isSetup) {
+          // First time - show preload screen for 2 seconds before password setup
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          setIsAppLockSetup(false);
+          setShowSetupDialog(true);
+          setIsAppLocked(false);
+        } else {
+          setIsAppLockSetup(true);
+          // If setup is complete, keep locked until user enters password
+        }
+      } catch (error) {
+        console.error('Error checking app lock setup:', error);
+        // Show preload screen for 2 seconds even on error
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setIsAppLockSetup(false);
+        setShowSetupDialog(true);
+        setIsAppLocked(false);
+      }
+    };
+    checkAppLockSetup();
+  }, []);
+  
+  // Auto-lock handler - locks app after inactivity
+  const handleAutoLock = useCallback(() => {
+    if (isAppLockSetup) {
+      setIsAppLocked(true);
+      toast({
+        title: "Wallet Locked",
+        description: "Your wallet has been locked due to inactivity.",
+      });
     }
+  }, [isAppLockSetup, toast]);
+
+  // Auto-lock warning handler
+  const handleLockWarning = useCallback((remainingSeconds: number) => {
+    toast({
+      title: "Wallet Locking Soon",
+      description: `Your wallet will lock in ${remainingSeconds} seconds due to inactivity.`,
+    });
+  }, [toast]);
+
+  // Handle app unlock (from lock screen)
+  const handleAppUnlock = useCallback(() => {
+    setIsAppLocked(false);
+  }, []);
+
+  // Handle app reset (forgot password)
+  const handleAppReset = useCallback(() => {
+    setIsAppLockSetup(false);
+    setIsAppLocked(false);
+    setShowSetupDialog(true);
+    setLoggedInUser(null);
+    setLoginMethod(null);
+  }, []);
+
+  // Handle app lock setup complete
+  const handleSetupComplete = useCallback(() => {
+    setShowSetupDialog(false);
+    setIsAppLockSetup(true);
+    setIsAppLocked(false); // Unlock after setup
+  }, []);
+
+  // Handle logout
+  const handleLogout = useCallback(async () => {
+    try {
+      if (!loggedInUser) {
+        return;
+      }
+      
+      // Remove only the current account (not all accounts)
+      await accountManager.removeAccount(loggedInUser);
+      
+      // Check if there are remaining accounts
+      const remainingAccounts = await accountManager.getAccounts();
+      
+      if (remainingAccounts.length > 0) {
+        // Switch to another account
+        const newActiveAccount = remainingAccounts[0].username;
+        setLoggedInUser(newActiveAccount);
+        setSelectedAccount(newActiveAccount);
+        
+        toast({
+          title: "Account Removed",
+          description: `@${loggedInUser} has been removed. Switched to @${newActiveAccount}.`,
+        });
+      } else {
+        // No accounts remaining, fully logout
+        setLoggedInUser(null);
+        setSelectedAccount('');
+        setLoginMethod(null);
+        setActiveTab("overview");
+        navigate('/');
+        toast({
+          title: "Logged Out",
+          description: "You have been logged out successfully.",
+        });
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+      toast({
+        title: "Logout Failed",
+        description: "Could not logout. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [loggedInUser, navigate, toast, setLoggedInUser, setSelectedAccount]);
+
+  // Initialize auto-lock (15 minutes of inactivity)
+  useAutoLock({
+    onLock: handleAutoLock,
+    onWarning: handleLockWarning,
+    enabled: isAppLockSetup === true && !isAppLocked,
+  });
+
+  // Sync selected account with context when URL changes
+  useEffect(() => {
+    if (selectedAccount && selectedAccount !== contextSelectedAccount) {
+      setSelectedAccount(selectedAccount);
+    }
+  }, [selectedAccount, contextSelectedAccount, setSelectedAccount]);
+
+  // Load login method from storage
+  useEffect(() => {
+    const loadLoginMethod = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const savedLoginMethod = await storage.getItem('steem_login_method') as 'privatekey' | 'masterpassword' | null;
+        if (savedLoginMethod) {
+          setLoginMethod(savedLoginMethod);
+        }
+      } catch (error) {
+        console.error('Error loading login method from storage:', error);
+      }
+    };
+    loadLoginMethod();
   }, []);
 
   useEffect(() => {
@@ -84,25 +223,9 @@ const Index = () => {
     }
   }, [loggedInUser, location.pathname, navigate]);
 
-  useEffect(() => {
-    const updateWalletData = async () => {
-      if (accountData && selectedAccount) {
-        try {
-          const formattedData = await formatWalletData(accountData);
-          setWalletData(formattedData);
-        } catch (error) {
-          console.error('Error formatting wallet data:', error);
-        }
-      } else {
-        // Reset wallet data when no account is selected
-        setWalletData(defaultWalletData);
-      }
-    };
-    updateWalletData();
-  }, [accountData, selectedAccount]);
-
-  const handleLoginSuccess = (username: string, method: 'keychain' | 'privatekey' | 'masterpassword') => {
+  const handleLoginSuccess = (username: string, method: 'privatekey' | 'masterpassword') => {
     setLoggedInUser(username);
+    setSelectedAccount(username);
     setLoginMethod(method);
     
     navigate(`/@${username}`);
@@ -113,16 +236,32 @@ const Index = () => {
     });
   };
 
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
-  };
+  const handleAccountSwitch = useCallback((username: string) => {
+    // Reset to overview tab for fresh start with new account
+    setActiveTab("overview");
+    setLoggedInUser(username);
+    setSelectedAccount(username);
+    // Login method will be loaded from storage by accountManager
+  }, [setLoggedInUser, setSelectedAccount]);
 
-  // Force grid mode on mobile
-  const effectiveViewMode = isMobile ? "grid" : viewMode;
-  const isListMode = effectiveViewMode === "list";
+  // Show preloading screen while initial data is loading
+  if (isInitialLoading && selectedAccount) {
+    return <AppLoadingScreen progress={loadingProgress} stage={loadingStage} />;
+  }
 
-  if (isLoading) {
-    return <WalletSkeleton />;
+  // Show loading while checking app lock status
+  if (isAppLockSetup === null) {
+    return <AppLoadingScreen progress={10} stage="Checking security..." />;
+  }
+
+  // Show lock screen if app is locked
+  if (isAppLocked && isAppLockSetup) {
+    return (
+      <AppLockScreen 
+        onUnlock={handleAppUnlock} 
+        onReset={handleAppReset} 
+      />
+    );
   }
 
   const renderTabContent = () => {
@@ -147,78 +286,153 @@ const Index = () => {
             outgoingDelegations={outgoingDelegations || []}
             onTransferClick={() => setIsTransferPopupOpen(true)}
             onDelegationClick={() => setActiveTab("delegation")}
-            onRefetch={refetch}
-            viewMode={effectiveViewMode}
+            onPowerDownClick={() => setIsPowerDownPopupOpen(true)}
+            onPowerUpClick={() => setIsPowerUpPopupOpen(true)}
+            onSavingsClick={(currency) => {
+              setSavingsPopupCurrency(currency);
+              setIsSavingsPopupOpen(true);
+            }}
+            onWithdrawSavingsClick={() => setIsWithdrawSavingsPopupOpen(true)}
+            onRefetch={refreshAll}
+            isRefreshing={isRefreshing}
           />
         );
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <WalletHeader
-        selectedAccount={selectedAccount}
-        loggedInUser={loggedInUser}
-        onLoginSuccess={handleLoginSuccess}
-      />
+    <div className="min-h-screen bg-slate-950">
+      {/* Show Welcome Page without header if no user is logged in */}
+      {!loggedInUser ? (
+        <WelcomePage onLoginSuccess={handleLoginSuccess} />
+      ) : (
+        <>
+          <WalletHeader
+            selectedAccount={selectedAccount}
+            loggedInUser={loggedInUser}
+            onLoginSuccess={handleLoginSuccess}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onLogout={handleLogout}
+            onAccountSwitch={handleAccountSwitch}
+          />
+        <div className="container mx-auto px-4 pt-5 pb-8">
+          {renderTabContent()}
+        </div>
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Error State */}
+        {/* Error Popup Modal with Blurred Background */}
         {error && (
-          <Card className="bg-red-50 border-red-200 mb-6">
-            <CardContent className="p-4">
-              <p className="text-red-800 font-medium">
-                Error loading account data: {error.message}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {isListMode && !isMobile ? (
-          /* List View - Sidebar Layout for Desktop Only */
-          <div className="flex gap-6">
-            <WalletNavigation
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
-              isListView={true}
-            />
-
-            {/* Main Content */}
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-6">
-                <WalletNavigation
-                  activeTab={activeTab}
-                  onTabChange={setActiveTab}
-                  viewMode={viewMode}
-                  onViewModeChange={handleViewModeChange}
-                  isListView={true}
-                />
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            {/* Blurred backdrop */}
+            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" />
+            
+            {/* Error popup */}
+            <div className="relative z-10 w-full max-w-md mx-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="rounded-2xl border border-red-900/50 bg-gradient-to-br from-slate-900 via-slate-900 to-red-950/30 shadow-2xl shadow-red-900/20 overflow-hidden">
+                {/* Red glow effect at top */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-red-500/20 rounded-full blur-3xl -translate-y-1/2" />
+                
+                <div className="relative p-6">
+                  {/* Icon */}
+                  <div className="flex justify-center mb-5">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-red-500/30 rounded-full blur-xl animate-pulse" />
+                      <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 flex items-center justify-center">
+                        {error.message.toLowerCase().includes('not found') ? (
+                          <UserX className="w-8 h-8 text-red-400" />
+                        ) : (
+                          <AlertCircle className="w-8 h-8 text-red-400" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Title */}
+                  <h2 className="text-xl font-bold text-white text-center mb-2">
+                    {error.message.toLowerCase().includes('not found') 
+                      ? 'Account Not Found' 
+                      : 'Error Loading Data'}
+                  </h2>
+                  
+                  {/* Message */}
+                  <p className="text-sm text-slate-400 text-center mb-6 leading-relaxed">
+                    {error.message.toLowerCase().includes('not found') 
+                      ? <>The account <span className="text-red-400 font-medium">@{selectedAccount}</span> doesn't exist on the Steem blockchain. Please check the username and try again.</>
+                      : error.message}
+                  </p>
+                  
+                  {/* Actions */}
+                  <div className="flex flex-col gap-3">
+                    <Button
+                      onClick={refreshAll}
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-slate-600"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Try Again
+                    </Button>
+                    
+                    {error.message.toLowerCase().includes('not found') && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => navigate('/')}
+                        className="w-full text-slate-400 hover:text-white hover:bg-slate-800/50"
+                      >
+                        Go to Home
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
-
-              {renderTabContent()}
             </div>
           </div>
-        ) : (
-          <>
-            <WalletNavigation
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
-            />
-
-            {renderTabContent()}
-          </>
         )}
-      </div>
+        </>
+      )}
 
       {/* Transfer Popup */}
       <TransferPopup
         isOpen={isTransferPopupOpen}
         onClose={() => setIsTransferPopupOpen(false)}
         username={loggedInUser || ''}
+      />
+
+      {/* Power Down Popup */}
+      <TransferPopup
+        isOpen={isPowerDownPopupOpen}
+        onClose={() => setIsPowerDownPopupOpen(false)}
+        username={loggedInUser || ''}
+        defaultOperation="powerdown"
+      />
+
+      {/* Power Up Popup */}
+      <TransferPopup
+        isOpen={isPowerUpPopupOpen}
+        onClose={() => setIsPowerUpPopupOpen(false)}
+        username={loggedInUser || ''}
+        defaultOperation="powerup"
+      />
+
+      {/* Savings Popup */}
+      <TransferPopup
+        isOpen={isSavingsPopupOpen}
+        onClose={() => setIsSavingsPopupOpen(false)}
+        username={loggedInUser || ''}
+        defaultOperation="savings"
+        defaultCurrency={savingsPopupCurrency}
+      />
+
+      {/* Withdraw Savings Popup - both STEEM and SBD available */}
+      <TransferPopup
+        isOpen={isWithdrawSavingsPopupOpen}
+        onClose={() => setIsWithdrawSavingsPopupOpen(false)}
+        username={loggedInUser || ''}
+        defaultOperation="withdraw_savings"
+      />
+
+      {/* App Lock Setup Dialog - shown on first launch */}
+      <AppLockSetupDialog
+        isOpen={showSetupDialog}
+        onSetupComplete={handleSetupComplete}
       />
     </div>
   );

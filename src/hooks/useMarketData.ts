@@ -6,8 +6,8 @@ export const useMarketData = () => {
   const { data: marketData, isLoading, error } = useQuery({
     queryKey: ['simplifiedMarketData'],
     queryFn: () => steemApi.getSimplifiedMarketData(),
-    refetchInterval: 30000,
-    staleTime: 15000,
+    refetchInterval: 5000,
+    staleTime: 5000,
   });
 
   const { data: hourlyHistory } = useQuery({

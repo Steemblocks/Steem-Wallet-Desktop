@@ -57,11 +57,11 @@ const MarketOperations = () => {
       <div className="space-y-4 sm:space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="bg-white border border-gray-200 shadow-sm">
+            <Card key={i} className="bg-slate-800/50 border border-slate-700 shadow-sm">
               <CardContent className="p-4">
                 <div className="animate-pulse space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-8 bg-gray-200 rounded w-16"></div>
+                  <div className="h-4 bg-slate-700 rounded w-20"></div>
+                  <div className="h-8 bg-slate-700 rounded w-16"></div>
                 </div>
               </CardContent>
             </Card>
@@ -74,11 +74,11 @@ const MarketOperations = () => {
   if (error) {
     return (
       <div className="space-y-4 sm:space-y-6">
-        <Card className="bg-white border border-red-200 shadow-sm">
+        <Card className="bg-red-950/50 border border-red-900/50 shadow-sm">
           <CardContent className="p-4">
-            <div className="text-center text-red-600">
+            <div className="text-center text-red-400">
               <p>Error loading market data</p>
-              <p className="text-sm text-gray-500 mt-2">Please check console for details</p>
+              <p className="text-sm text-slate-400 mt-2">Please check console for details</p>
             </div>
           </CardContent>
         </Card>
@@ -90,11 +90,11 @@ const MarketOperations = () => {
     <div className="space-y-4 sm:space-y-6">
       {/* Market Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">STEEM Price</p>
+                <p className="text-xs sm:text-sm font-medium text-slate-400">STEEM Price</p>
                 <p className="text-lg sm:text-2xl font-bold" style={{ color: '#07d7a9' }}>
                   {steemApi.formatMarketPrice(ticker?.latest || "0")} SBD
                 </p>
@@ -105,54 +105,54 @@ const MarketOperations = () => {
                 <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" />
               )}
             </div>
-            <p className={`text-xs mt-1 ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xs mt-1 ${percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {percentChange >= 0 ? '+' : ''}{(percentChange * 100).toFixed(2)}% (24h)
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Spread</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-800">
+                <p className="text-xs sm:text-sm font-medium text-slate-400">Spread</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">
                   {ticker ? ((parseFloat(ticker.lowest_ask) - parseFloat(ticker.highest_bid)) * 100 / parseFloat(ticker.highest_bid)).toFixed(2) : '0.00'}%
                 </p>
               </div>
               <DollarSign className="w-6 h-6 sm:w-8 sm:h-8" style={{ color: '#07d7a9' }} />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               Bid: {steemApi.formatMarketPrice(ticker?.highest_bid || "0")} SBD
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">24h Volume</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-800">{steemVolume} STEEM</p>
+                <p className="text-xs sm:text-sm font-medium text-slate-400">24h Volume</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{steemVolume} STEEM</p>
               </div>
               <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
             </div>
-            <p className="text-xs text-gray-500 mt-1">{sbdVolume} SBD</p>
+            <p className="text-xs text-slate-400 mt-1">{sbdVolume} SBD</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Ask Price</p>
-                <p className="text-lg sm:text-2xl font-bold text-red-600">
+                <p className="text-xs sm:text-sm font-medium text-slate-400">Ask Price</p>
+                <p className="text-lg sm:text-2xl font-bold text-red-400">
                   {steemApi.formatMarketPrice(ticker?.lowest_ask || "0")} SBD
                 </p>
               </div>
               <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               Lowest sell order
             </p>
           </CardContent>
@@ -166,7 +166,7 @@ const MarketOperations = () => {
       <MarketDepthChart orderBook={orderBook} />
 
       <Tabs defaultValue="trade" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-white shadow-sm border border-gray-200">
+        <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 shadow-sm border border-slate-700">
           <TabsTrigger 
             value="trade" 
             className="data-[state=active]:text-white data-[state=active]:bg-[#07d7a9] text-sm sm:text-base"
@@ -190,21 +190,21 @@ const MarketOperations = () => {
         <TabsContent value="trade" className="space-y-4 relative">
           {/* Blurred Trade Content */}
           <div className="blur-sm pointer-events-none">
-            <Card className="bg-white border border-gray-200 shadow-sm">
+            <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-gray-800 text-lg sm:text-xl">Trade STEEM</CardTitle>
-                <CardDescription className="text-gray-500 text-sm sm:text-base">
+                <CardTitle className="text-white text-lg sm:text-xl">Trade STEEM</CardTitle>
+                <CardDescription className="text-slate-400 text-sm sm:text-base">
                   Buy or sell STEEM with SBD
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                <div className="flex gap-2 p-1 bg-slate-700 rounded-lg">
                   <Button
                     variant={tradeType === "buy" ? "default" : "ghost"}
                     onClick={() => setTradeType("buy")}
                     className={`flex-1 ${tradeType === "buy" 
                       ? "bg-green-600 hover:bg-green-700 text-white" 
-                      : "hover:bg-gray-200 text-gray-600"
+                      : "hover:bg-slate-600 text-slate-300"
                     }`}
                   >
                     Buy
@@ -214,7 +214,7 @@ const MarketOperations = () => {
                     onClick={() => setTradeType("sell")}
                     className={`flex-1 ${tradeType === "sell" 
                       ? "bg-red-600 hover:bg-red-700 text-white" 
-                      : "hover:bg-gray-200 text-gray-600"
+                      : "hover:bg-slate-600 text-slate-300"
                     }`}
                   >
                     Sell
@@ -222,19 +222,19 @@ const MarketOperations = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="trade-amount" className="text-gray-700">Amount (STEEM)</Label>
+                  <Label htmlFor="trade-amount" className="text-slate-300">Amount (STEEM)</Label>
                   <Input
                     id="trade-amount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.000"
-                    className="border-gray-300"
+                    className="bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <Label htmlFor="trade-price" className="text-gray-700">Price (SBD per STEEM)</Label>
+                    <Label htmlFor="trade-price" className="text-slate-300">Price (SBD per STEEM)</Label>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -249,22 +249,22 @@ const MarketOperations = () => {
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="0.000000"
-                    className="border-gray-300"
+                    className="bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
 
-                <div className="p-3 sm:p-4 rounded-lg" style={{ backgroundColor: '#f5f4f5' }}>
+                <div className="p-3 sm:p-4 rounded-lg bg-slate-700/50">
                   <div className="space-y-1 text-xs sm:text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">
+                      <span className="text-slate-400">
                         {tradeType === "buy" ? "Total Cost:" : "Total Receive:"}
                       </span>
-                      <span className="text-gray-800">
+                      <span className="text-white">
                         {amount && price ? (parseFloat(amount) * parseFloat(price)).toFixed(3) : "0.000"} SBD
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Market Price:</span>
+                      <span className="text-slate-400">Market Price:</span>
                       <span style={{ color: '#07d7a9' }}>
                         {steemApi.formatMarketPrice(ticker?.latest || "0")} SBD
                       </span>
@@ -288,23 +288,23 @@ const MarketOperations = () => {
           </div>
 
           {/* Coming Soon Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-lg">
-            <div className="bg-white px-8 py-6 rounded-lg shadow-lg text-center">
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">Coming Soon</h3>
-              <p className="text-gray-600">Trading functionality will be available soon</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-lg">
+            <div className="bg-slate-800 px-8 py-6 rounded-lg shadow-lg text-center border border-slate-700">
+              <h3 className="text-2xl font-bold text-white mb-2">Coming Soon</h3>
+              <p className="text-slate-300">Trading functionality will be available soon</p>
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="orderbook" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <Card className="bg-white border border-gray-200 shadow-sm">
+            <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-gray-800 text-green-600 text-lg sm:text-xl">Buy Orders</CardTitle>
+                <CardTitle className="text-green-400 text-lg sm:text-xl">Buy Orders</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm font-medium text-gray-500 pb-2 border-b">
+                  <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm font-medium text-slate-400 pb-2 border-b border-slate-700">
                     <span>Price (SBD)</span>
                     <span className="text-right">STEEM</span>
                     <span className="text-right">SBD</span>
@@ -312,28 +312,28 @@ const MarketOperations = () => {
                   {orderBook?.bids?.slice(0, 15).map((order, index) => {
                     const formatted = steemApi.formatOrderBookEntry(order);
                     return (
-                      <div key={index} className="grid grid-cols-3 gap-2 text-xs sm:text-sm py-1 hover:bg-gray-50 rounded">
-                        <span className="text-green-600 font-medium">
+                      <div key={index} className="grid grid-cols-3 gap-2 text-xs sm:text-sm py-1 hover:bg-slate-700/50 rounded">
+                        <span className="text-green-400 font-medium">
                           {formatted.price}
                         </span>
-                        <span className="text-right text-gray-800">{formatted.steem}</span>
-                        <span className="text-right text-gray-600">{formatted.sbd}</span>
+                        <span className="text-right text-white">{formatted.steem}</span>
+                        <span className="text-right text-slate-400">{formatted.sbd}</span>
                       </div>
                     );
                   }) || (
-                    <div className="text-center text-gray-500 py-4">Loading buy orders...</div>
+                    <div className="text-center text-slate-400 py-4">Loading buy orders...</div>
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white border border-gray-200 shadow-sm">
+            <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-gray-800 text-red-600 text-lg sm:text-xl">Sell Orders</CardTitle>
+                <CardTitle className="text-red-400 text-lg sm:text-xl">Sell Orders</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm font-medium text-gray-500 pb-2 border-b">
+                  <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm font-medium text-slate-400 pb-2 border-b border-slate-700">
                     <span>Price (SBD)</span>
                     <span className="text-right">STEEM</span>
                     <span className="text-right">SBD</span>
@@ -341,16 +341,16 @@ const MarketOperations = () => {
                   {orderBook?.asks?.slice(0, 15).map((order, index) => {
                     const formatted = steemApi.formatOrderBookEntry(order);
                     return (
-                      <div key={index} className="grid grid-cols-3 gap-2 text-xs sm:text-sm py-1 hover:bg-gray-50 rounded">
-                        <span className="text-red-600 font-medium">
+                      <div key={index} className="grid grid-cols-3 gap-2 text-xs sm:text-sm py-1 hover:bg-slate-700/50 rounded">
+                        <span className="text-red-400 font-medium">
                           {formatted.price}
                         </span>
-                        <span className="text-right text-gray-800">{formatted.steem}</span>
-                        <span className="text-right text-gray-600">{formatted.sbd}</span>
+                        <span className="text-right text-white">{formatted.steem}</span>
+                        <span className="text-right text-slate-400">{formatted.sbd}</span>
                       </div>
                     );
                   }) || (
-                    <div className="text-center text-gray-500 py-4">Loading sell orders...</div>
+                    <div className="text-center text-slate-400 py-4">Loading sell orders...</div>
                   )}
                 </div>
               </CardContent>
@@ -359,13 +359,13 @@ const MarketOperations = () => {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
-          <Card className="bg-white border border-gray-200 shadow-sm">
+          <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-gray-800 text-lg sm:text-xl flex items-center gap-2">
+              <CardTitle className="text-white text-lg sm:text-xl flex items-center gap-2">
                 <Clock className="w-5 h-5" />
                 Recent Trades
               </CardTitle>
-              <CardDescription className="text-gray-500 text-sm sm:text-base">
+              <CardDescription className="text-slate-400 text-sm sm:text-base">
                 Latest STEEM/SBD market trades
               </CardDescription>
             </CardHeader>
@@ -383,24 +383,24 @@ const MarketOperations = () => {
                   </TableHeader>
                   <TableBody>
                     {tradeHistory.slice(0, 20).map((trade, index) => (
-                      <TableRow key={index} className="hover:bg-gray-50">
-                        <TableCell className="text-xs sm:text-sm text-gray-600">
+                      <TableRow key={index} className="hover:bg-slate-700/50">
+                        <TableCell className="text-xs sm:text-sm text-slate-400">
                           {formatTimeAgo(trade.date)}
                         </TableCell>
-                        <TableCell className="text-xs sm:text-sm text-right font-medium">
+                        <TableCell className="text-xs sm:text-sm text-right font-medium text-white">
                           {trade.price.toFixed(3)}
                         </TableCell>
-                        <TableCell className="text-xs sm:text-sm text-right">
+                        <TableCell className="text-xs sm:text-sm text-right text-white">
                           {trade.steemAmount.toFixed(3)}
                         </TableCell>
-                        <TableCell className="text-xs sm:text-sm text-right">
+                        <TableCell className="text-xs sm:text-sm text-right text-white">
                           {trade.sbdAmount.toFixed(3)}
                         </TableCell>
                         <TableCell className="text-center">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             trade.type === 'sell' 
-                              ? 'bg-red-100 text-red-700' 
-                              : 'bg-green-100 text-green-700'
+                              ? 'bg-red-900/50 text-red-400' 
+                              : 'bg-green-900/50 text-green-400'
                           }`}>
                             {trade.type.toUpperCase()}
                           </span>
@@ -409,7 +409,7 @@ const MarketOperations = () => {
                     ))}
                     {tradeHistory.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-gray-500 py-4">
+                        <TableCell colSpan={5} className="text-center text-slate-400 py-4">
                           Loading trade history...
                         </TableCell>
                       </TableRow>

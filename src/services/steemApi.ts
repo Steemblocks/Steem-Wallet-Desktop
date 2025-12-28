@@ -33,6 +33,14 @@ export interface SteemAccount {
   post_count: number;
   can_vote: boolean;
   voting_power: number;
+  voting_manabar?: {
+    current_mana: string;
+    last_update_time: number;
+  };
+  downvote_manabar?: {
+    current_mana: string;
+    last_update_time: number;
+  };
   last_vote_time: string;
   balance: string;
   savings_balance: string;
@@ -190,6 +198,16 @@ export interface RecentTradesResponse {
   trades: MarketTradeHistoryEntry[];
 }
 
+export interface SavingsWithdrawal {
+  id: number;
+  from: string;
+  to: string;
+  memo: string;
+  request_id: number;
+  amount: string;
+  complete: string; // Date when withdrawal completes
+}
+
 export interface SteemProposal {
   id: number;
   proposal_id: number;
@@ -233,6 +251,14 @@ export interface VestingDelegation {
   min_delegation_time: string;
 }
 
+// Expiring vesting delegations (cancelled delegations in cooldown period)
+export interface ExpiringVestingDelegation {
+  id: number;
+  delegator: string;
+  vesting_shares: string;
+  expiration: string;
+}
+
 export class SteemApiService {
   private currentEndpoint = 0;
   private endpoints = getAllEndpoints();
@@ -245,53 +271,55 @@ export class SteemApiService {
   }
 
   private async makeRequest(method: string, params: any): Promise<any> {
-    const endpoint = this.endpoints[this.currentEndpoint];
-    
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.REQUEST_TIMEOUT);
+    const startingEndpoint = this.currentEndpoint;
+    let lastError: Error | null = null;
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: method,
-          params: params,
-          id: 1,
-        }),
-        signal: controller.signal,
-      });
+    // Try each endpoint iteratively (prevents stack overflow from recursion)
+    for (let attempt = 0; attempt < this.endpoints.length; attempt++) {
+      const endpoint = this.endpoints[this.currentEndpoint];
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.REQUEST_TIMEOUT);
 
-      clearTimeout(timeoutId);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: method,
+            params: params,
+            id: 1,
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error.message || 'API Error');
+        }
+
+        return data.result;
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`Error with endpoint ${endpoint}:`, error);
+        
+        // Move to next endpoint for retry
+        this.currentEndpoint = (this.currentEndpoint + 1) % this.endpoints.length;
       }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error.message || 'API Error');
-      }
-
-      return data.result;
-    } catch (error) {
-      console.error(`Error with endpoint ${endpoint}:`, error);
-      
-      // Try next endpoint
-      this.currentEndpoint = (this.currentEndpoint + 1) % this.endpoints.length;
-      
-      if (this.currentEndpoint === 0) {
-        // We've tried all endpoints, throw the error
-        throw error;
-      }
-      
-      // Retry with next endpoint
-      return this.makeRequest(method, params);
     }
+
+    // All endpoints exhausted, throw the last error
+    throw lastError || new Error('All API endpoints failed');
   }
 
   async getAccounts(usernames: string[]): Promise<SteemAccount[]> {
@@ -352,6 +380,12 @@ export class SteemApiService {
 
   async getMarketVolume(): Promise<MarketVolume> {
     return this.makeRequest('condenser_api.get_volume', []);
+  }
+
+  // Get the blockchain median price feed (witness-voted price)
+  // This is the price used by the blockchain for reward calculations
+  async getCurrentMedianHistoryPrice(): Promise<{ base: string; quote: string }> {
+    return this.makeRequest('condenser_api.get_current_median_history_price', []);
   }
 
   async getMarketHistory(bucketSeconds: number, start: string, end: string): Promise<MarketHistoryEntry[]> {
@@ -672,29 +706,10 @@ export class SteemApiService {
     return this.makeRequest('condenser_api.get_vesting_delegations', [delegator, startAccount, limit]);
   }
 
-  // Get incoming delegations (delegations received by an account)
-  async getIncomingDelegations(delegatee: string, startAccount: string | null = null, limit: number = 100): Promise<VestingDelegation[]> {
-    // We need to search through delegations to find ones where delegatee matches
-    // This is a workaround since there's no direct API for incoming delegations
-    try {
-      // Get all recent delegations and filter for this account
-      const allDelegations = await this.makeRequest('database_api.list_vesting_delegations', {
-        start: [delegatee, ''],
-        limit: limit,
-        order: 'by_delegation'
-      });
-      
-      if (allDelegations && allDelegations.delegations) {
-        return allDelegations.delegations.filter((delegation: VestingDelegation) => 
-          delegation.delegatee === delegatee && parseFloat(delegation.vesting_shares.split(' ')[0]) > 0
-        );
-      }
-      
-      return [];
-    } catch (error) {
-      console.error('Error fetching incoming delegations:', error);
-      return [];
-    }
+  // Get expiring vesting delegations (delegations in cooldown period, returning to account)
+  // These are delegations that were cancelled and are waiting ~5 days to return
+  async getExpiringVestingDelegations(account: string, afterDate: string = '1970-01-01T00:00:00', limit: number = 100): Promise<ExpiringVestingDelegation[]> {
+    return this.makeRequest('condenser_api.get_expiring_vesting_delegations', [account, afterDate, limit]);
   }
 
   // Helper method to format delegation data
@@ -711,25 +726,9 @@ export class SteemApiService {
   }
 
   // Get account history with pagination
+  // Always use direct HTTP API for consistent and fresh results
   async getAccountHistory(account: string, from: number = -1, limit: number = 100): Promise<any[]> {
-    return new Promise((resolve, reject) => {
-      if (typeof window !== 'undefined' && window.steem) {
-        window.steem.api.getAccountHistory(account, from, limit, function(err: any, result: any) {
-          if (err) {
-            console.error('Error fetching account history:', err);
-            reject(err);
-          } else {
-            console.log('Account history result:', result);
-            resolve(result || []);
-          }
-        });
-      } else {
-        // Fallback to HTTP API if steem library is not available
-        this.makeRequest('condenser_api.get_account_history', [account, from, limit])
-          .then(resolve)
-          .catch(reject);
-      }
-    });
+    return this.makeRequest('condenser_api.get_account_history', [account, from, limit]);
   }
 
   // Helper method to filter transactions by operation type
@@ -751,14 +750,16 @@ export class SteemApiService {
     const { timestamp, op } = txData;
     const [operationType, operationData] = op;
 
-    console.log('Formatting transaction:', { index, operationType, timestamp });
+    // Steem blockchain timestamps are in UTC, append 'Z' to ensure proper parsing
+    const utcTimestamp = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
+    const date = new Date(utcTimestamp);
 
     return {
       index,
-      timestamp: new Date(timestamp),
+      timestamp: date,
       type: operationType,
       data: operationData,
-      formattedTimestamp: new Date(timestamp).toLocaleString(),
+      formattedTimestamp: date.toLocaleString(),
       operationType,
       operationData
     };
@@ -786,6 +787,28 @@ export class SteemApiService {
       'comment',
       'custom_json'
     ];
+  }
+
+  // Get pending savings withdrawals for an account
+  async getSavingsWithdrawFrom(account: string): Promise<SavingsWithdrawal[]> {
+    try {
+      const result = await this.makeRequest('condenser_api.get_savings_withdraw_from', [account]);
+      return result || [];
+    } catch (error) {
+      console.error('Error fetching savings withdrawals:', error);
+      return [];
+    }
+  }
+
+  // Get pending savings withdrawals to an account
+  async getSavingsWithdrawTo(account: string): Promise<SavingsWithdrawal[]> {
+    try {
+      const result = await this.makeRequest('condenser_api.get_savings_withdraw_to', [account]);
+      return result || [];
+    } catch (error) {
+      console.error('Error fetching savings withdrawals to:', error);
+      return [];
+    }
   }
 }
 

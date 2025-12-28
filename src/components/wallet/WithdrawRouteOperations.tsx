@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { steemApi } from '@/services/steemApi';
+import { SecureStorageFactory } from '@/services/secureStorage';
 
 const WithdrawRouteOperations = () => {
   const [recipient, setRecipient] = useState("");
@@ -20,18 +21,29 @@ const WithdrawRouteOperations = () => {
   const [currentRoutes, setCurrentRoutes] = useState<any[]>([]);
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
   
+  const [username, setUsername] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
   const { toast } = useToast();
+  
+  // CRITICAL: Track transaction submission to prevent duplicate transactions
+  const setRouteSubmittedRef = useRef(false);
+  const removeRouteSubmittedRef = useRef<Set<string>>(new Set());
 
-  // Check if user is logged in
-  const isLoggedIn = localStorage.getItem('steem_username');
-  const username = localStorage.getItem('steem_username');
-
-  // Load current withdraw routes
+  // Load username from secure storage
   useEffect(() => {
-    if (isLoggedIn && username) {
-      loadWithdrawRoutes();
-    }
-  }, [isLoggedIn, username]);
+    const loadUserData = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const user = await storage.getItem('steem_username');
+        setUsername(user);
+        setIsLoggedIn(!!user);
+      } catch (error) {
+        console.error('Error loading user data from storage:', error);
+      }
+    };
+    loadUserData();
+  }, []);
 
   const loadWithdrawRoutes = async () => {
     if (!username) return;
@@ -77,8 +89,14 @@ const WithdrawRouteOperations = () => {
       return;
     }
 
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // CRITICAL: Prevent duplicate submissions
+    if (setRouteSubmittedRef.current || isProcessing) {
+      console.log('Blocking duplicate set withdraw route submission');
+      return;
+    }
     
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    setRouteSubmittedRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -94,18 +112,29 @@ const WithdrawRouteOperations = () => {
 
       console.log('Setting withdraw route with operation:', operation);
 
-      if (loginMethod === 'keychain') {
-        await handleKeychainOperation(username!, operation);
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyOperation(username!, operation);
-      }
-    } catch (error) {
+      await handlePrivateKeyOperation(username!, operation, 'set');
+    } catch (error: any) {
       console.error('Withdraw route error:', error);
-      toast({
-        title: "Operation Failed",
-        description: "Failed to set withdraw route. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Route Already Set",
+          description: "This withdraw route was already configured.",
+        });
+        setRecipient("");
+        setPercentage(0);
+        setAutoVest(false);
+        setTimeout(() => loadWithdrawRoutes(), 2000);
+      } else {
+        toast({
+          title: "Operation Failed",
+          description: "Failed to set withdraw route. Please try again.",
+          variant: "destructive",
+        });
+        setRouteSubmittedRef.current = false;
+      }
       setIsProcessing(false);
     }
   };
@@ -113,8 +142,14 @@ const WithdrawRouteOperations = () => {
   const handleRemoveRoute = async (toAccount: string) => {
     if (!isLoggedIn || !username) return;
 
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // CRITICAL: Prevent duplicate submissions for the same route
+    if (removeRouteSubmittedRef.current.has(toAccount) || isProcessing) {
+      console.log('Blocking duplicate remove route submission for:', toAccount);
+      return;
+    }
     
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    removeRouteSubmittedRef.current.add(toAccount);
     setIsProcessing(true);
 
     try {
@@ -127,100 +162,52 @@ const WithdrawRouteOperations = () => {
 
       console.log('Removing withdraw route with operation:', operation);
 
-      if (loginMethod === 'keychain') {
-        await handleKeychainOperation(username, operation);
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyOperation(username, operation);
-      }
-    } catch (error) {
-      console.error('Remove route error:', error);
-      toast({
-        title: "Operation Failed",
-        description: "Failed to remove withdraw route. Please try again.",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    }
-  };
-
-  const handleKeychainOperation = async (username: string, operation: any) => {
-    if (!window.steem_keychain) {
-      toast({
-        title: "Keychain Not Available",
-        description: "Steem Keychain not found",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-      return;
-    }
-
-    try {
-      console.log('Sending withdraw route operation to Keychain:', operation);
-
-      window.steem_keychain.requestBroadcast(
-        username,
-        [['set_withdraw_vesting_route', operation]],
-        'Active',
-        (response: any) => {
-          console.log('Keychain withdraw route response:', response);
-          
-          if (response.success) {
-            if (operation.percent === 0) {
-              toast({
-                title: "Route Removed",
-                description: `Withdraw route to @${operation.to_account} has been removed`,
-              });
-            } else {
-              toast({
-                title: "Withdraw Route Set",
-                description: `${(operation.percent / 100).toFixed(1)}% of power down will go to @${operation.to_account}${operation.auto_vest ? ' (auto-vested)' : ''}`,
-              });
-            }
-            
-            // Reset form and reload routes
-            setRecipient("");
-            setPercentage(0);
-            setAutoVest(false);
-            setTimeout(() => loadWithdrawRoutes(), 2000); // Reload after 2 seconds
-          } else {
-            toast({
-              title: "Operation Failed",
-              description: response.message || "Transaction was rejected",
-              variant: "destructive",
-            });
-          }
-          setIsProcessing(false);
-        }
-      );
+      await handlePrivateKeyOperation(username, operation, 'remove');
     } catch (error: any) {
-      console.error('Keychain withdraw route error:', error);
-      toast({
-        title: "Operation Failed",
-        description: error.message || "Failed to process operation",
-        variant: "destructive",
-      });
+      console.error('Remove route error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Route Already Removed",
+          description: "This withdraw route was already removed.",
+        });
+        setTimeout(() => loadWithdrawRoutes(), 2000);
+      } else {
+        toast({
+          title: "Operation Failed",
+          description: "Failed to remove withdraw route. Please try again.",
+          variant: "destructive",
+        });
+        removeRouteSubmittedRef.current.delete(toAccount);
+      }
       setIsProcessing(false);
     }
   };
 
-  const handlePrivateKeyOperation = async (username: string, operation: any) => {
-    const privateKeyString = localStorage.getItem('steem_active_key');
+  const handlePrivateKeyOperation = async (username: string, operation: any, action: 'set' | 'remove') => {
+    const storage = SecureStorageFactory.getInstance();
+    const privateKeyString = await storage.getItem('steem_active_key');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
         description: "Active key required for this operation",
         variant: "destructive",
       });
+      if (action === 'set') {
+        setRouteSubmittedRef.current = false;
+      } else {
+        removeRouteSubmittedRef.current.delete(operation.to_account);
+      }
       setIsProcessing(false);
       return;
     }
 
     try {
       const privateKey = dsteem.PrivateKey.fromString(privateKeyString);
-      console.log('Executing withdraw route operation with private key:', operation);
       
       const result = await steemOperations.setWithdrawVestingRoute(operation, privateKey);
-      console.log('Withdraw route operation result:', result);
       
       if (operation.percent === 0) {
         toast({
@@ -241,8 +228,44 @@ const WithdrawRouteOperations = () => {
       setTimeout(() => loadWithdrawRoutes(), 2000); // Reload after 2 seconds
       setIsProcessing(false);
       
+      // Reset refs after success
+      if (action === 'set') {
+        setRouteSubmittedRef.current = false;
+      } else {
+        removeRouteSubmittedRef.current.delete(operation.to_account);
+      }
+      
     } catch (error: any) {
       console.error('Private key withdraw route error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        if (operation.percent === 0) {
+          toast({
+            title: "Route Already Removed",
+            description: `Withdraw route to @${operation.to_account} was already removed.`,
+          });
+        } else {
+          toast({
+            title: "Route Already Set",
+            description: `Withdraw route was already configured.`,
+          });
+        }
+        setRecipient("");
+        setPercentage(0);
+        setAutoVest(false);
+        setTimeout(() => loadWithdrawRoutes(), 2000);
+        setIsProcessing(false);
+        
+        // Reset refs after duplicate (treated as success)
+        if (action === 'set') {
+          setRouteSubmittedRef.current = false;
+        } else {
+          removeRouteSubmittedRef.current.delete(operation.to_account);
+        }
+        return;
+      }
       
       let errorMessage = "Operation failed";
       if (error.jse_shortmsg) {
@@ -256,6 +279,13 @@ const WithdrawRouteOperations = () => {
         description: errorMessage,
         variant: "destructive",
       });
+      
+      // CRITICAL: Reset ref so user can retry on genuine errors
+      if (action === 'set') {
+        setRouteSubmittedRef.current = false;
+      } else {
+        removeRouteSubmittedRef.current.delete(operation.to_account);
+      }
       setIsProcessing(false);
     }
   };
@@ -264,13 +294,13 @@ const WithdrawRouteOperations = () => {
     <div className="space-y-6">
       {/* Login requirement notice */}
       {!isLoggedIn && (
-        <Card className="bg-blue-50 border border-blue-200 shadow-sm">
+        <Card className="bg-blue-900/30 border border-blue-700 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <Lock className="w-5 h-5 text-blue-500 mt-0.5" />
+              <Lock className="w-5 h-5 text-blue-400 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-blue-800">Login Required</p>
-                <p className="text-xs text-blue-700">
+                <p className="text-sm font-medium text-blue-300">Login Required</p>
+                <p className="text-xs text-blue-400">
                   You must be logged in to manage withdraw vesting routes.
                 </p>
               </div>
@@ -281,10 +311,10 @@ const WithdrawRouteOperations = () => {
 
       {/* Current Routes */}
       {isLoggedIn && (
-        <Card className="bg-white border border-gray-200 shadow-sm">
+        <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-gray-800">Current Withdraw Routes</CardTitle>
-            <CardDescription className="text-gray-600">
+            <CardTitle className="text-white">Current Withdraw Routes</CardTitle>
+            <CardDescription className="text-slate-400">
               Your active power down routing configurations
             </CardDescription>
           </CardHeader>
@@ -292,28 +322,28 @@ const WithdrawRouteOperations = () => {
             {isLoadingRoutes ? (
               <div className="flex items-center justify-center p-4">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                <span className="text-gray-600">Loading routes...</span>
+                <span className="text-slate-400">Loading routes...</span>
               </div>
             ) : currentRoutes.length > 0 ? (
               <div className="space-y-3">
                 {currentRoutes.map((route, index) => (
-                  <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <div key={index} className="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-800">@{route.to_account}</span>
+                        <span className="font-medium text-white">@{route.to_account}</span>
                         {route.auto_vest && (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                          <span className="text-xs bg-green-900/50 text-green-400 px-2 py-1 rounded">
                             Auto Vest
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">{(route.percent / 100).toFixed(1)}% of power down</p>
+                      <p className="text-sm text-slate-400">{(route.percent / 100).toFixed(1)}% of power down</p>
                     </div>
                     <Button
                       onClick={() => handleRemoveRoute(route.to_account)}
                       variant="outline"
                       size="sm"
-                      className="border-red-300 text-red-600 hover:bg-red-50"
+                      className="border-red-600 text-red-400 hover:bg-red-900/30"
                       disabled={isProcessing}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -322,41 +352,41 @@ const WithdrawRouteOperations = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No active withdraw routes</p>
+              <p className="text-slate-400 text-center py-4">No active withdraw routes</p>
             )}
           </CardContent>
         </Card>
       )}
 
       {/* Set New Route */}
-      <Card className="bg-white border border-gray-200 shadow-sm">
+      <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <ArrowRight className="w-5 h-5" style={{ color: '#07d7a9' }} />
             <div>
-              <CardTitle className="text-gray-800">Set Withdraw Vesting Route</CardTitle>
-              <CardDescription className="text-gray-600">
+              <CardTitle className="text-white">Set Withdraw Vesting Route</CardTitle>
+              <CardDescription className="text-slate-400">
                 Route your power down payments to another account
-                {!isLoggedIn && <span className="text-blue-600"> (Login required)</span>}
+                {!isLoggedIn && <span className="text-blue-400"> (Login required)</span>}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="recipient" className="text-gray-700">Recipient Account</Label>
+            <Label htmlFor="recipient" className="text-slate-300">Recipient Account</Label>
             <Input
               id="recipient"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="username (without @)"
-              className="bg-white border-gray-300"
+              className="bg-slate-800 border-slate-700 text-white"
               disabled={!isLoggedIn || isProcessing}
             />
           </div>
           
           <div className="space-y-3">
-            <Label className="text-gray-700">Percentage (%)</Label>
+            <Label className="text-slate-300">Percentage (%)</Label>
             <div className="px-3">
               <Slider
                 value={[percentage]}
@@ -368,9 +398,9 @@ const WithdrawRouteOperations = () => {
                 disabled={!isLoggedIn || isProcessing}
               />
             </div>
-            <div className="flex justify-between text-sm text-gray-500">
+            <div className="flex justify-between text-sm text-slate-400">
               <span>0%</span>
-              <span className="font-medium text-gray-700">{percentage.toFixed(1)}%</span>
+              <span className="font-medium text-slate-300">{percentage.toFixed(1)}%</span>
               <span>100%</span>
             </div>
             <Input
@@ -381,7 +411,7 @@ const WithdrawRouteOperations = () => {
               min="0"
               max="100"
               step="0.1"
-              className="bg-white border-gray-300"
+              className="bg-slate-800 border-slate-700 text-white"
               disabled={!isLoggedIn || isProcessing}
             />
           </div>
@@ -393,17 +423,17 @@ const WithdrawRouteOperations = () => {
               onCheckedChange={setAutoVest}
               disabled={!isLoggedIn || isProcessing}
             />
-            <Label htmlFor="auto-vest" className="text-gray-700">
+            <Label htmlFor="auto-vest" className="text-slate-300">
               Auto Vest (Convert to STEEM Power automatically)
             </Label>
           </div>
 
-          <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <div className="p-4 rounded-lg bg-blue-900/30 border border-blue-800">
             <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-blue-600 mt-0.5" />
+              <Info className="w-4 h-4 text-blue-400 mt-0.5" />
               <div>
-                <h4 className="font-medium text-blue-800 mb-2">How it works:</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
+                <h4 className="font-medium text-blue-300 mb-2">How it works:</h4>
+                <ul className="text-sm text-blue-200 space-y-1">
                   <li>• {percentage.toFixed(1)}% = {Math.round(percentage * 100)} basis points</li>
                   <li>• Steem uses basis points (0-10,000 where 10,000 = 100%)</li>
                   <li>• Set to 0% to remove an existing route</li>
@@ -412,9 +442,9 @@ const WithdrawRouteOperations = () => {
             </div>
           </div>
 
-          <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-            <h4 className="font-medium text-yellow-800 mb-2">⚠️ Important Notes:</h4>
-            <ul className="text-sm text-yellow-700 space-y-1">
+          <div className="p-4 rounded-lg bg-yellow-900/30 border border-yellow-800">
+            <h4 className="font-medium text-yellow-300 mb-2">⚠️ Important Notes:</h4>
+            <ul className="text-sm text-yellow-200 space-y-1">
               <li>• Routes percentage of weekly power down to recipient</li>
               <li>• Remaining percentage comes to your account</li>
               <li>• Multiple routes can be set (total ≤ 100%)</li>
@@ -424,24 +454,24 @@ const WithdrawRouteOperations = () => {
             </ul>
           </div>
 
-          <div className="p-4 rounded-lg" style={{ backgroundColor: '#f5f4f5' }}>
-            <h4 className="font-medium text-gray-800 mb-2">Route Preview:</h4>
+          <div className="p-4 rounded-lg bg-slate-700/50">
+            <h4 className="font-medium text-white mb-2">Route Preview:</h4>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">To:</span>
-                <span className="text-gray-800">@{recipient || '...'}</span>
+                <span className="text-slate-400">To:</span>
+                <span className="text-white">@{recipient || '...'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Percentage:</span>
-                <span className="text-gray-800">{percentage.toFixed(1)}% ({Math.round(percentage * 100)} basis points)</span>
+                <span className="text-slate-400">Percentage:</span>
+                <span className="text-white">{percentage.toFixed(1)}% ({Math.round(percentage * 100)} basis points)</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Auto Vest:</span>
-                <span className="text-gray-800">{autoVest ? 'Yes' : 'No'}</span>
+                <span className="text-slate-400">Auto Vest:</span>
+                <span className="text-white">{autoVest ? 'Yes' : 'No'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Remaining to you:</span>
-                <span className="text-gray-800">{(100 - percentage).toFixed(1)}%</span>
+                <span className="text-slate-400">Remaining to you:</span>
+                <span className="text-white">{(100 - percentage).toFixed(1)}%</span>
               </div>
             </div>
           </div>

@@ -1,11 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowDown, X, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ArrowDown, X, Loader2, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { getSteemPerMvests, vestsToSteem, getDaysUntilNextWithdrawal } from '@/utils/utility';
+import { SecureStorageFactory } from '@/services/secureStorage';
 
 interface PowerDownStatusProps {
   account: any;
@@ -15,11 +17,32 @@ interface PowerDownStatusProps {
 const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [weeklySteem, setWeeklySteem] = useState(0);
+  const [username, setUsername] = useState<string | null>(null);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
+  
+  // CRITICAL: Track transaction submission to prevent duplicate transactions
+  const cancelSubmittedRef = useRef(false);
+
+  // Load credentials from secure storage - reload when account changes
+  useEffect(() => {
+    const loadCredentials = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const user = await storage.getItem('steem_username');
+        const key = await storage.getItem('steem_active_key');
+        setUsername(user);
+        setActiveKey(key);
+      } catch (error) {
+        console.error('Error loading credentials from storage:', error);
+      }
+    };
+    loadCredentials();
+  }, [account?.name]); // Re-run when account changes
 
   if (!account) return null;
 
-  const username = localStorage.getItem('steem_username');
   const vestingWithdrawRate = parseFloat(account.vesting_withdraw_rate?.split(' ')[0] || '0');
   const nextWithdrawal = new Date(account.next_vesting_withdrawal);
   const withdrawn = parseFloat(account.withdrawn || '0');
@@ -55,77 +78,51 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
   const handleCancelPowerDown = async () => {
     if (!username || !isPowerDownActive) return;
 
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // CRITICAL: Prevent duplicate submissions
+    if (cancelSubmittedRef.current || isCancelling) {
+      console.log('Blocking duplicate cancel power down submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    cancelSubmittedRef.current = true;
     setIsCancelling(true);
 
     try {
-      if (loginMethod === 'keychain') {
-        await handleKeychainCancel();
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyCancel();
-      }
-    } catch (error) {
-      console.error('Cancel power down error:', error);
-      toast({
-        title: "Operation Failed",
-        description: "Failed to cancel power down. Please try again.",
-        variant: "destructive",
-      });
-      setIsCancelling(false);
-    }
-  };
-
-  const handleKeychainCancel = async () => {
-    if (!window.steem_keychain) {
-      toast({
-        title: "Keychain Not Available",
-        description: "Steem Keychain not found",
-        variant: "destructive",
-      });
-      setIsCancelling(false);
-      return;
-    }
-
-    try {
-      window.steem_keychain.requestBroadcast(
-        username!,
-        [['withdraw_vesting', { account: username!, vesting_shares: '0.000000 VESTS' }]],
-        'Active',
-        (response: any) => {
-          if (response.success) {
-            toast({
-              title: "Power Down Cancelled",
-              description: "Your power down has been successfully cancelled",
-            });
-            onUpdate?.();
-          } else {
-            toast({
-              title: "Operation Failed",
-              description: response.message || "Transaction was rejected",
-              variant: "destructive",
-            });
-          }
-          setIsCancelling(false);
-        }
-      );
+      await handlePrivateKeyCancel();
     } catch (error: any) {
-      toast({
-        title: "Operation Failed",
-        description: error.message || "Failed to cancel power down",
-        variant: "destructive",
-      });
+      console.error('Cancel power down error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Power Down Already Cancelled",
+          description: "This cancellation was already processed.",
+        });
+        onUpdate?.();
+      } else {
+        toast({
+          title: "Operation Failed",
+          description: "Failed to cancel power down. Please try again.",
+          variant: "destructive",
+        });
+        // Only reset ref on genuine errors to allow retry
+        cancelSubmittedRef.current = false;
+      }
       setIsCancelling(false);
     }
   };
 
   const handlePrivateKeyCancel = async () => {
-    const privateKeyString = localStorage.getItem('steem_active_key');
+    const privateKeyString = activeKey;
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
         description: "Active key required for this operation",
         variant: "destructive",
       });
+      cancelSubmittedRef.current = false;
       setIsCancelling(false);
       return;
     }
@@ -140,7 +137,20 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
       });
       onUpdate?.();
       setIsCancelling(false);
+      // Keep cancelSubmittedRef as true to prevent any accidental double submissions
     } catch (error: any) {
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Power Down Already Cancelled",
+          description: "This cancellation was already processed.",
+        });
+        onUpdate?.();
+        setIsCancelling(false);
+        return;
+      }
+      
       let errorMessage = "Operation failed";
       if (error.jse_shortmsg) {
         errorMessage = error.jse_shortmsg;
@@ -153,6 +163,8 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
         description: errorMessage,
         variant: "destructive",
       });
+      // CRITICAL: Reset ref so user can retry on genuine errors
+      cancelSubmittedRef.current = false;
       setIsCancelling(false);
     }
   };
@@ -162,34 +174,34 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
   }
 
   return (
-    <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg p-3">
+    <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 backdrop-blur-sm">
       <div className="flex items-center gap-3">
-        <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-100">
+        <Badge variant="secondary" className="bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30">
           <ArrowDown className="w-3 h-3 mr-1" />
           Power Down Active
         </Badge>
         
         <div className="flex items-center gap-4 text-sm">
           <div>
-            <span className="text-orange-700 font-medium">{weeklySteem.toFixed(3)} STEEM</span>
-            <span className="text-orange-600 ml-1">weekly</span>
+            <span className="text-amber-300 font-medium">{weeklySteem.toFixed(3)} STEEM</span>
+            <span className="text-amber-400/70 ml-1">weekly</span>
           </div>
           
           <div>
-            <span className="text-orange-700 font-medium">
+            <span className="text-amber-300 font-medium">
               {nextWithdrawal.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
-            <span className="text-orange-600 ml-1">({daysUntilNext} days)</span>
+            <span className="text-amber-400/70 ml-1">({daysUntilNext} days)</span>
           </div>
         </div>
       </div>
 
       {isOwnAccount && (
         <Button
-          onClick={handleCancelPowerDown}
+          onClick={() => setConfirmDialogOpen(true)}
           variant="outline"
           size="sm"
-          className="border-red-300 text-red-600 hover:bg-red-50 text-xs"
+          className="border-red-500/50 text-red-400 hover:bg-red-500/20 hover:text-red-300 hover:border-red-400/50 text-xs"
           disabled={isCancelling}
         >
           {isCancelling ? (
@@ -205,6 +217,43 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
           )}
         </Button>
       )}
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent className="bg-slate-950/95 border-slate-800/70">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/30">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+              </div>
+              <AlertDialogTitle className="text-lg">Cancel Power Down?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="text-slate-300 leading-relaxed">
+                <span>Are you sure you want to cancel your active power down? This action will:</span>
+                <ul className="mt-3 space-y-2 ml-4 list-disc text-sm">
+                  <li>Stop all scheduled weekly STEEM payouts</li>
+                  <li>Keep your remaining Steem Power locked</li>
+                  <li>Require starting a new power down if you change your mind</li>
+                  <li className="text-amber-300 font-medium">Any partial payouts already received will remain in your account</li>
+                </ul>
+                <div className="mt-4 p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                  <span className="text-xs text-slate-400">Note: This operation requires your active key and cannot be undone.</span>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-900 border-slate-700 hover:bg-slate-800">Keep Power Down</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleCancelPowerDown()}
+              className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30 hover:text-red-300"
+            >
+              Yes, Cancel Power Down
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

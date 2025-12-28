@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Vote, X, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
+import { SecureStorageFactory } from '@/services/secureStorage';
 
 interface Proposal {
   id: number;
@@ -24,12 +25,30 @@ const ProposalOperations = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [userVotes, setUserVotes] = useState<number[]>([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
   
   const { toast } = useToast();
+  
+  // CRITICAL: Track transaction submission to prevent duplicate transactions
+  const transactionSubmittedRef = useRef(false);
+  // Track the last transaction key to identify duplicates
+  const transactionKeyRef = useRef<string | null>(null);
 
-  // Check if user is logged in
-  const isLoggedIn = localStorage.getItem('steem_username');
-  const username = localStorage.getItem('steem_username');
+  // Load login data from secure storage
+  useEffect(() => {
+    const loadLoginData = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const user = await storage.getItem('steem_username');
+        setUsername(user);
+        setIsLoggedIn(!!user);
+      } catch (error) {
+        console.error('Error loading login data from storage:', error);
+      }
+    };
+    loadLoginData();
+  }, []);
 
   // Mock proposal data - in real app, this would come from the blockchain
   useEffect(() => {
@@ -72,7 +91,18 @@ const ProposalOperations = () => {
       return;
     }
 
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // Create a unique transaction key
+    const txKey = `proposal_${proposalId}_${approve}_${Date.now()}`;
+    
+    // CRITICAL: Prevent duplicate submissions
+    if (transactionSubmittedRef.current || isProcessing) {
+      console.log('Blocking duplicate proposal vote submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    transactionSubmittedRef.current = true;
+    transactionKeyRef.current = txKey;
     setIsProcessing(true);
 
     try {
@@ -82,13 +112,27 @@ const ProposalOperations = () => {
         approve: approve
       };
 
-      if (loginMethod === 'keychain') {
-        await handleKeychainOperation(username!, operation, approve ? 'vote' : 'unvote');
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyOperation(username!, operation, approve ? 'vote' : 'unvote');
-      }
-    } catch (error) {
+      await handlePrivateKeyOperation(username!, operation, approve ? 'vote' : 'unvote');
+    } catch (error: any) {
       console.error('Proposal vote error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Vote Already Processed",
+          description: `Your ${approve ? 'vote' : 'unvote'} was already submitted.`,
+        });
+        // Update local state as if successful
+        if (approve) {
+          setUserVotes(prev => [...prev, proposalId]);
+        } else {
+          setUserVotes(prev => prev.filter(id => id !== proposalId));
+        }
+      } else {
+        // Reset ref on genuine errors to allow retry
+        transactionSubmittedRef.current = false;
+      }
       setIsProcessing(false);
     }
   };
@@ -122,7 +166,18 @@ const ProposalOperations = () => {
       return;
     }
 
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // Create a unique transaction key
+    const txKey = `bulk_${ids.join('_')}_${approve}_${Date.now()}`;
+    
+    // CRITICAL: Prevent duplicate submissions
+    if (transactionSubmittedRef.current || isProcessing) {
+      console.log('Blocking duplicate bulk vote submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    transactionSubmittedRef.current = true;
+    transactionKeyRef.current = txKey;
     setIsProcessing(true);
 
     try {
@@ -132,76 +187,42 @@ const ProposalOperations = () => {
         approve: approve
       };
 
-      if (loginMethod === 'keychain') {
-        await handleKeychainOperation(username!, operation, approve ? 'vote' : 'unvote');
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyOperation(username!, operation, approve ? 'vote' : 'unvote');
-      }
-    } catch (error) {
-      console.error('Bulk proposal vote error:', error);
-      setIsProcessing(false);
-    }
-  };
-
-  const handleKeychainOperation = async (username: string, operation: any, action: string) => {
-    if (!window.steem_keychain) {
-      toast({
-        title: "Keychain Not Available",
-        description: "Steem Keychain not found",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-      return;
-    }
-
-    try {
-      window.steem_keychain.requestBroadcast(
-        username,
-        [['update_proposal_votes', operation]],
-        'Posting',
-        (response: any) => {
-          if (response.success) {
-            toast({
-              title: `Proposal ${action} Successful`,
-              description: `Successfully ${action}d on proposal(s) ${operation.proposal_ids.join(', ')}`,
-            });
-            
-            // Update local vote state
-            if (operation.approve) {
-              setUserVotes(prev => [...prev, ...operation.proposal_ids]);
-            } else {
-              setUserVotes(prev => prev.filter(id => !operation.proposal_ids.includes(id)));
-            }
-            
-            setProposalIds("");
-          } else {
-            toast({
-              title: "Operation Failed",
-              description: response.message || "Transaction was rejected",
-              variant: "destructive",
-            });
-          }
-          setIsProcessing(false);
-        }
-      );
+      await handlePrivateKeyOperation(username!, operation, approve ? 'vote' : 'unvote');
     } catch (error: any) {
-      toast({
-        title: "Operation Failed",
-        description: error.message || "Failed to process operation",
-        variant: "destructive",
-      });
+      console.error('Bulk proposal vote error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Votes Already Processed",
+          description: `Your bulk ${approve ? 'votes' : 'unvotes'} were already submitted.`,
+        });
+        // Update local state as if successful
+        if (approve) {
+          setUserVotes(prev => [...prev, ...ids]);
+        } else {
+          setUserVotes(prev => prev.filter(id => !ids.includes(id)));
+        }
+        setProposalIds("");
+      } else {
+        // Reset ref on genuine errors to allow retry
+        transactionSubmittedRef.current = false;
+      }
       setIsProcessing(false);
     }
   };
 
   const handlePrivateKeyOperation = async (username: string, operation: any, action: string) => {
-    const privateKeyString = localStorage.getItem('steem_posting_key');
+    const storage = SecureStorageFactory.getInstance();
+    const privateKeyString = await storage.getItem('steem_posting_key');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
         description: "Posting key required for voting",
         variant: "destructive",
       });
+      transactionSubmittedRef.current = false;
       setIsProcessing(false);
       return;
     }
@@ -224,9 +245,30 @@ const ProposalOperations = () => {
       
       setProposalIds("");
       setIsProcessing(false);
+      // Reset ref after successful operation so user can make new votes
+      transactionSubmittedRef.current = false;
       
     } catch (error: any) {
       console.error('Operation error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Vote Already Processed",
+          description: `Your ${action} was already submitted successfully.`,
+        });
+        // Update local state as if successful
+        if (operation.approve) {
+          setUserVotes(prev => [...prev, ...operation.proposal_ids]);
+        } else {
+          setUserVotes(prev => prev.filter(id => !operation.proposal_ids.includes(id)));
+        }
+        setProposalIds("");
+        setIsProcessing(false);
+        transactionSubmittedRef.current = false;
+        return;
+      }
       
       let errorMessage = "Operation failed";
       if (error.jse_shortmsg) {
@@ -240,6 +282,8 @@ const ProposalOperations = () => {
         description: errorMessage,
         variant: "destructive",
       });
+      // CRITICAL: Reset ref so user can retry on genuine errors
+      transactionSubmittedRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -248,13 +292,13 @@ const ProposalOperations = () => {
     <div className="space-y-6">
       {/* Login requirement notice */}
       {!isLoggedIn && (
-        <Card className="bg-blue-50 border border-blue-200 shadow-sm">
+        <Card className="bg-blue-900/30 border border-blue-700 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <Lock className="w-5 h-5 text-blue-500 mt-0.5" />
+              <Lock className="w-5 h-5 text-blue-400 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-blue-800">Login Required</p>
-                <p className="text-xs text-blue-700">
+                <p className="text-sm font-medium text-blue-300">Login Required</p>
+                <p className="text-xs text-blue-400">
                   You must be logged in to vote on proposals.
                 </p>
               </div>
@@ -264,31 +308,31 @@ const ProposalOperations = () => {
       )}
 
       {/* Bulk Vote Operations */}
-      <Card className="bg-white border border-gray-200 shadow-sm">
+      <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Vote className="w-5 h-5" style={{ color: '#07d7a9' }} />
             <div>
-              <CardTitle className="text-gray-800">Proposal Voting</CardTitle>
-              <CardDescription className="text-gray-600">
+              <CardTitle className="text-white">Proposal Voting</CardTitle>
+              <CardDescription className="text-slate-400">
                 Vote on multiple proposals by ID
-                {!isLoggedIn && <span className="text-blue-600"> (Login required)</span>}
+                {!isLoggedIn && <span className="text-blue-400"> (Login required)</span>}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="proposal-ids" className="text-gray-700">Proposal IDs</Label>
+            <Label htmlFor="proposal-ids" className="text-slate-300">Proposal IDs</Label>
             <Input
               id="proposal-ids"
               value={proposalIds}
               onChange={(e) => setProposalIds(e.target.value)}
               placeholder="1, 2, 3 (comma separated)"
-              className="bg-white border-gray-300"
+              className="bg-slate-800 border-slate-700 text-white"
               disabled={!isLoggedIn}
             />
-            <p className="text-sm text-gray-500">Enter proposal IDs separated by commas</p>
+            <p className="text-sm text-slate-400">Enter proposal IDs separated by commas</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -314,7 +358,7 @@ const ProposalOperations = () => {
             <Button 
               onClick={() => handleBulkVote(false)}
               variant="outline"
-              className="border-red-600 text-red-600 hover:bg-red-50"
+              className="border-red-600 text-red-400 hover:bg-red-900/30"
               disabled={!isLoggedIn || !proposalIds || isProcessing}
             >
               {!isLoggedIn ? (
@@ -334,18 +378,18 @@ const ProposalOperations = () => {
       </Card>
 
       {/* Active Proposals */}
-      <Card className="bg-white border border-gray-200 shadow-sm">
+      <Card className="bg-slate-800/50 border border-slate-700 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-gray-800">Active Proposals</CardTitle>
+          <CardTitle className="text-white">Active Proposals</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {proposals.map((proposal) => (
-              <div key={proposal.id} className="p-4 rounded-lg border border-gray-200">
+              <div key={proposal.id} className="p-4 rounded-lg border border-slate-700">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h4 className="font-medium text-gray-800">#{proposal.id} {proposal.title}</h4>
-                    <p className="text-sm text-gray-500">by @{proposal.creator}</p>
+                    <h4 className="font-medium text-white">#{proposal.id} {proposal.title}</h4>
+                    <p className="text-sm text-slate-400">by @{proposal.creator}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={userVotes.includes(proposal.id) ? "default" : "outline"}>
@@ -356,7 +400,7 @@ const ProposalOperations = () => {
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Daily Pay: {proposal.daily_pay}</span>
+                  <span className="text-sm text-slate-400">Daily Pay: {proposal.daily_pay}</span>
                   <div className="flex gap-2">
                     {userVotes.includes(proposal.id) ? (
                       <Button
@@ -364,7 +408,7 @@ const ProposalOperations = () => {
                         variant="outline"
                         onClick={() => handleVoteProposal(proposal.id, false)}
                         disabled={!isLoggedIn || isProcessing}
-                        className="border-red-600 text-red-600 hover:bg-red-50"
+                        className="border-red-600 text-red-400 hover:bg-red-900/30"
                       >
                         <X className="w-3 h-3 mr-1" />
                         Unvote

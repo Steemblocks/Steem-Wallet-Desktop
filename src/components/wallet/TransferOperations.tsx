@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, TrendingUp, PiggyBank, ArrowDown, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SecureStorageFactory } from '@/services/secureStorage';
 import TransferConfirmDialog from "./TransferConfirmDialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type OperationType = 'transfer' | 'powerup' | 'powerdown' | 'savings' | 'withdraw_savings';
 
@@ -19,11 +21,20 @@ const TransferOperations = () => {
   const [memo, setMemo] = useState("");
   const [operationType, setOperationType] = useState<OperationType>('transfer');
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Check if user is logged in
-  const isLoggedIn = localStorage.getItem('steem_username');
+  // Load login status from secure storage
+  useEffect(() => {
+    const loadLoginStatus = async () => {
+      const storage = SecureStorageFactory.getInstance();
+      const username = await storage.getItem('steem_username');
+      setIsLoggedIn(!!username);
+    };
+    loadLoginStatus();
+  }, []);
 
   const handleOperation = () => {
     // Check if user is logged in first
@@ -65,6 +76,13 @@ const TransferOperations = () => {
       title: "Operation Successful",
       description: `${operationType.charAt(0).toUpperCase() + operationType.slice(1)} completed successfully`,
     });
+    
+    // Invalidate account history cache to show new transaction immediately
+    // Small delay to allow blockchain to process the transaction
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['accountHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['steemAccount'] });
+    }, 2000);
   };
 
   const getOperationTitle = () => {
@@ -105,216 +123,215 @@ const TransferOperations = () => {
 
   return (
     <div className="space-y-6">
-      {/* Login requirement notice */}
+      {/* Modern Operation Type Selector */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {[
+          { type: 'transfer' as OperationType, icon: ArrowRight, label: 'Transfer', desc: 'Send Assets' },
+          { type: 'powerup' as OperationType, icon: TrendingUp, label: 'Power Up', desc: 'Increase Voting' },
+          { type: 'powerdown' as OperationType, icon: ArrowDown, label: 'Power Down', desc: '13-Week Process' },
+          { type: 'savings' as OperationType, icon: PiggyBank, label: 'To Savings', desc: 'Secure Storage' },
+          { type: 'withdraw_savings' as OperationType, icon: PiggyBank, label: 'From Savings', desc: '3-Day Wait' },
+        ].map(({ type, icon: Icon, label, desc }) => (
+          <button
+            key={type}
+            onClick={() => setOperationType(type)}
+            className={`p-4 rounded-2xl border-2 transition-all duration-300 transform hover:scale-105 ${
+              operationType === type
+                ? 'bg-gradient-to-br from-steemit-500 to-steemit-600 border-steemit-500 text-white shadow-lg'
+                : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:border-steemit-500'
+            }`}
+            disabled={!isLoggedIn}
+          >
+            <Icon className={`w-6 h-6 mx-auto mb-2 ${operationType === type ? 'text-white' : 'text-steemit-500'}`} />
+            <p className={`font-semibold text-sm ${operationType === type ? 'text-white' : 'text-white'}`}>{label}</p>
+            <p className={`text-xs mt-1 ${operationType === type ? 'text-steemit-100' : 'text-slate-400'}`}>{desc}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Login Notice */}
       {!isLoggedIn && (
-        <Card className="bg-blue-50 border border-blue-200 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Lock className="w-5 h-5 text-blue-500 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-800">Login Required for Operations</p>
-                <p className="text-xs text-blue-700">
-                  You can view wallet information without logging in, but blockchain operations require authentication for security.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="p-4 rounded-2xl bg-blue-950/30 border border-blue-900/50 flex gap-4">
+          <div className="p-3 rounded-xl bg-blue-900/50 h-fit">
+            <Lock className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-blue-300 mb-1">Login Required</h3>
+            <p className="text-sm text-blue-400">You need to log in to perform blockchain operations. View-only mode is available without authentication.</p>
+          </div>
+        </div>
       )}
 
-      <Card className="bg-white border border-gray-200 shadow-sm">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            {getIcon()}
-            <div>
-              <CardTitle className="text-gray-800">{getOperationTitle()}</CardTitle>
-              <CardDescription className="text-gray-600">
-                {getOperationDescription()}
-                {!isLoggedIn && <span className="text-blue-600"> (Login required to execute)</span>}
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Tabs value={operationType} onValueChange={(value) => setOperationType(value as OperationType)}>
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="transfer" className="text-xs">Transfer</TabsTrigger>
-              <TabsTrigger value="powerup" className="text-xs">Power Up</TabsTrigger>
-              <TabsTrigger value="powerdown" className="text-xs">Power Down</TabsTrigger>
-              <TabsTrigger value="savings" className="text-xs">To Savings</TabsTrigger>
-              <TabsTrigger value="withdraw_savings" className="text-xs">From Savings</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {showRecipientField && (
-              <div className="space-y-2">
-                <Label htmlFor="recipient" className="text-gray-700">
-                  {operationType === 'powerup' ? 'Power Up For (optional)' : 'Recipient Username'}
-                </Label>
-                <Input
-                  id="recipient"
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  placeholder={operationType === 'powerup' ? "leave empty for self" : "username (without @)"}
-                  className="bg-white border-gray-300"
-                  disabled={!isLoggedIn}
-                />
-              </div>
-            )}
-            
-            {showCurrencySelect && (
-              <div className="space-y-2">
-                <Label htmlFor="currency" className="text-gray-700">Currency</Label>
-                <Select value={currency} onValueChange={setCurrency} disabled={!isLoggedIn}>
-                  <SelectTrigger className="bg-white border-gray-300">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-300">
-                    <SelectItem value="STEEM">STEEM</SelectItem>
-                    <SelectItem value="SBD">SBD</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-gray-700">
-              Amount {operationType === 'powerup' ? '(STEEM)' : operationType === 'powerdown' ? '(STEEM Power)' : ''}
-            </Label>
-            <Input
-              id="amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.000"
-              className="bg-white border-gray-300"
-              disabled={!isLoggedIn}
-            />
-            <p className="text-sm text-gray-500">
-              {isLoggedIn ? (
-                operationType === 'powerdown' ? 
-                  "Available: 1,250.000 STEEM Power" :
-                  `Available: ${currency === "STEEM" ? "1,250.000 STEEM" : "425.750 SBD"}`
-              ) : (
-                "Login to see your available balance"
+      {/* Main Operation Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Input Form */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="bg-slate-800/50 border border-slate-700 shadow-lg rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-900/50 border-b border-slate-700 pb-4">
+              <CardTitle className="text-white text-xl font-bold">{getOperationTitle()}</CardTitle>
+              <CardDescription className="text-slate-400 mt-1">{getOperationDescription()}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5 pt-6">
+              {showRecipientField && (
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-3">
+                    {operationType === 'powerup' ? '👤 Power Up For (Optional)' : '👤 Recipient'}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">@</span>
+                    <Input
+                      value={recipient}
+                      onChange={(e) => setRecipient(e.target.value)}
+                      placeholder={operationType === 'powerup' ? "Leave empty for yourself" : "username"}
+                      className="pl-8 bg-slate-900/50 border-slate-700 rounded-xl focus:bg-slate-900 focus:border-steemit-500 focus:ring-2 focus:ring-steemit-500/20 transition-all h-11 text-white placeholder:text-slate-500"
+                      disabled={!isLoggedIn}
+                    />
+                  </div>
+                </div>
               )}
-            </p>
-          </div>
 
-          {(operationType === 'transfer' || operationType === 'savings' || operationType === 'withdraw_savings') && (
-            <div className="space-y-2">
-              <Label htmlFor="memo" className="text-gray-700">Memo (Optional)</Label>
-              <Textarea
-                id="memo"
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                placeholder="Add a note with your transfer..."
-                className="bg-white border-gray-300 resize-none"
-                rows={3}
-                disabled={!isLoggedIn}
-              />
-            </div>
-          )}
+              <div className={showCurrencySelect ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-1'}>
+                <div className={showCurrencySelect ? 'col-span-2' : ''}>
+                  <label className="block text-sm font-semibold text-white mb-3">💰 Amount</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.001"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.000"
+                      className="bg-slate-900/50 border-slate-700 rounded-xl focus:bg-slate-900 focus:border-steemit-500 focus:ring-2 focus:ring-steemit-500/20 transition-all h-11 text-white placeholder:text-slate-500"
+                      disabled={!isLoggedIn}
+                    />
+                  </div>
+                </div>
 
+                {showCurrencySelect && (
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-3">💵 Currency</label>
+                    <Select value={currency} onValueChange={setCurrency} disabled={!isLoggedIn}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 rounded-xl focus:bg-slate-900 focus:border-steemit-500 focus:ring-2 focus:ring-steemit-500/20 transition-all h-11 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl bg-slate-800 border-slate-700">
+                        <SelectItem value="STEEM">STEEM</SelectItem>
+                        <SelectItem value="SBD">SBD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {(operationType === 'transfer' || operationType === 'savings' || operationType === 'withdraw_savings') && (
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-3">📝 Memo (Optional)</label>
+                  <Textarea
+                    value={memo}
+                    onChange={(e) => setMemo(e.target.value)}
+                    placeholder="Add a message or note..."
+                    className="bg-slate-800 border-slate-700 rounded-xl focus:bg-slate-900 focus:border-steemit-500 focus:ring-2 focus:ring-steemit-500/20 transition-all resize-none text-white placeholder:text-slate-500"
+                    rows={3}
+                    disabled={!isLoggedIn}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Info Alerts */}
           {operationType === 'powerdown' && (
-            <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-              <h4 className="font-medium text-yellow-800 mb-2">⚠️ Power Down Information:</h4>
-              <ul className="text-sm text-yellow-700 space-y-1">
-                <li>• Power down takes 13 weeks to complete</li>
-                <li>• You'll receive 1/13 of the amount each week</li>
-                <li>• You can cancel power down anytime</li>
-                <li>• Reduces your voting influence immediately</li>
+            <div className="p-5 rounded-2xl bg-amber-900/30 border-2 border-amber-700 space-y-3">
+              <h4 className="font-bold text-amber-300 flex items-center gap-2">⚠️ Important Information</h4>
+              <ul className="text-sm text-amber-200 space-y-2 ml-6">
+                <li>• Takes 13 weeks (91 days) to complete</li>
+                <li>• Receive 1/13 of your amount each week</li>
+                <li>• Can cancel anytime during the process</li>
+                <li>• Your voting power reduces immediately</li>
               </ul>
             </div>
           )}
 
           {(operationType === 'savings' || operationType === 'withdraw_savings') && (
-            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-              <h4 className="font-medium text-blue-800 mb-2">💡 Savings Information:</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Savings have a 3-day withdrawal period</li>
-                <li>• Extra security for your funds</li>
-                <li>• Cannot be transferred instantly</li>
+            <div className="p-5 rounded-2xl bg-blue-900/30 border-2 border-blue-700 space-y-3">
+              <h4 className="font-bold text-blue-300 flex items-center gap-2">💡 How Savings Work</h4>
+              <ul className="text-sm text-blue-200 space-y-2 ml-6">
+                <li>• 3-day withdrawal delay for security</li>
+                <li>• Protected from unauthorized access</li>
+                <li>• Earn interest on holdings</li>
                 <li>• Perfect for long-term storage</li>
               </ul>
             </div>
           )}
+        </div>
 
-          <div className="p-4 rounded-lg" style={{ backgroundColor: '#f5f4f5' }}>
-            <h4 className="font-medium text-gray-800 mb-2">Operation Summary:</h4>
-            <div className="space-y-1 text-sm">
-              {showRecipientField && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">
-                    {operationType === 'powerup' ? 'Power up for:' : 'To:'}
-                  </span>
-                  <span className="text-gray-800">
-                    @{recipient || (operationType === 'powerup' ? 'self' : '...')}
-                  </span>
+        {/* Right: Summary & Action */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-4 space-y-4">
+            {/* Summary Card */}
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-lg rounded-2xl overflow-hidden">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-white text-lg">Transaction Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {showRecipientField && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 text-sm">To</span>
+                    <span className="font-semibold text-white">@{recipient || (operationType === 'powerup' ? 'self' : 'N/A')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm">Amount</span>
+                  <span className="font-bold text-lg text-steemit-500">{amount || '0.000'} {operationType === 'powerdown' ? 'SP' : currency}</span>
                 </div>
+                <div className="h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-slate-400 text-sm">Fee</span>
+                  <span className="font-bold text-steemit-500">FREE</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm">Balance</span>
+                  <span className="text-sm text-slate-300">{currency === 'STEEM' ? '1,250.000' : '425.750'}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Action Button */}
+            <Button
+              onClick={handleOperation}
+              disabled={!isLoggedIn || !amount || (showRecipientField && operationType !== 'powerup' && !recipient)}
+              className="w-full h-12 rounded-xl font-bold text-white text-base transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: isLoggedIn ? '#07d7a9' : '#9ca3af',
+              }}
+            >
+              {!isLoggedIn ? (
+                <>
+                  <Lock className="w-5 h-5 mr-2" />
+                  Login Required
+                </>
+              ) : (
+                <>
+                  {getIcon()}
+                  <span className="ml-2">{getOperationTitle()}</span>
+                </>
               )}
-              <div className="flex justify-between">
-                <span className="text-gray-600">Amount:</span>
-                <span className="text-gray-800">
-                  {amount || "0.000"} {operationType === 'powerdown' ? 'SP' : currency}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Fee:</span>
-                <span style={{ color: '#07d7a9' }}>Free</span>
-              </div>
-            </div>
-          </div>
+            </Button>
 
-          <Button 
-            onClick={handleOperation} 
-            className="w-full text-white"
-            style={{ backgroundColor: isLoggedIn ? '#07d7a9' : '#6b7280' }}
-            disabled={!amount || (showRecipientField && operationType !== 'powerup' && !recipient)}
-          >
-            {!isLoggedIn ? (
-              <>
-                <Lock className="w-4 h-4 mr-2" />
-                Login Required - {getOperationTitle()}
-              </>
-            ) : (
-              getOperationTitle()
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-white border border-gray-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-gray-800">Recent Operations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: '#f5f4f5' }}>
-              <div>
-                <p className="text-gray-800 font-medium">Powered up to @self</p>
-                <p className="text-sm text-gray-500">2 hours ago</p>
-              </div>
-              <div className="text-right">
-                <p className="text-blue-500 font-medium">+50.000 SP</p>
-                <p className="text-sm text-gray-500">Confirmed</p>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: '#f5f4f5' }}>
-              <div>
-                <p className="text-gray-800 font-medium">Sent to @alice</p>
-                <p className="text-sm text-gray-500">1 day ago</p>
-              </div>
-              <div className="text-right">
-                <p className="text-red-500 font-medium">-100.000 STEEM</p>
-                <p className="text-sm text-gray-500">Confirmed</p>
-              </div>
-            </div>
+            {/* Available Balance Card */}
+            <Card className="bg-slate-800/50 border border-slate-700 rounded-2xl">
+              <CardContent className="p-4">
+                <p className="text-xs text-slate-400 mb-2">Available Balance</p>
+                <p className="text-2xl font-bold text-white">
+                  {currency === 'STEEM' ? '1,250.000' : '425.750'}
+                </p>
+                <p className="text-sm text-slate-400 mt-2">
+                  ≈ ${((currency === 'STEEM' ? 1250 : 425.75) * (currency === 'STEEM' ? 0.076 : 0.559)).toFixed(2)} USD
+                </p>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <TransferConfirmDialog
         isOpen={isConfirmDialogOpen}

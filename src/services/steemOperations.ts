@@ -179,7 +179,8 @@ export class SteemOperationsService {
       {
         voter: operation.voter,
         proposal_ids: operation.proposal_ids,
-        approve: operation.approve
+        approve: operation.approve,
+        extensions: []
       }
     ];
     return client.broadcast.sendOperations([updateProposalVotesOp], privateKey);

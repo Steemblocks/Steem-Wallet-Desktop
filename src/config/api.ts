@@ -1,11 +1,12 @@
 
 // Centralized API configuration
 export const API_CONFIG = {
-  // Primary Steem API endpoints (in order of preference) - steemyy.com prioritized
+  // Primary Steem API endpoints (in order of preference) - api.steemit.com is most reliable
   STEEM_ENDPOINTS: [
-    'https://api.steemyy.com',
     'https://api.steemit.com',
-    'https://api.botsteem.com'
+    'https://api.steemitdev.com',
+    'https://steemd.steemworld.org/',
+    'https://api.moecki.online/'
   ],
   
   // Default endpoint index

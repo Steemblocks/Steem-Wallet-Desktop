@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Key, RefreshCw, AlertTriangle, Copy, Check, Eye, EyeOff, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Shield, Key, RefreshCw, AlertTriangle, Copy, Check, Eye, EyeOff, Users, Download, Lock, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
+import { SecureStorageFactory } from '@/services/secureStorage';
+import { AppLockService } from '@/services/appLockService';
+import ChangePasswordDialog from './ChangePasswordDialog';
 
 interface AccountSecurityOperationsProps {
   loggedInUser: string | null;
@@ -23,6 +28,10 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
   const [showPrivateKeys, setShowPrivateKeys] = useState(false);
   const [revealedPrivateKeys, setRevealedPrivateKeys] = useState<any>(null);
   const { toast } = useToast();
+  
+  // CRITICAL: Track transaction submission to prevent duplicate transactions
+  const passwordChangeSubmittedRef = useRef(false);
+  const resetAccountSubmittedRef = useRef(false);
 
   // Password Change State
   const [passwordData, setPasswordData] = useState({
@@ -38,13 +47,93 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
     newResetAccount: ''
   });
 
-  const loginMethod = localStorage.getItem('steem_login_method');
+  // Master Password Import Dialog State
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importPassword, setImportPassword] = useState('');
+  const [showImportPassword, setShowImportPassword] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
+  // App Lock State
+  const [showChangePasswordDialog, setShowChangePasswordDialog] = useState(false);
+  const [isResettingApp, setIsResettingApp] = useState(false);
 
   const canRevealPrivateKeys = () => {
-    return loginMethod === 'masterpassword' || loginMethod === 'privatekey';
+    return true; // Always allow for privatekey or masterpassword logins
   };
 
-  const handleRevealPrivateKeys = () => {
+  // Import all keys from master password
+  const handleImportKeys = async () => {
+    if (!loggedInUser || !importPassword) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter your master password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      // Derive all 4 keys from master password using Steem's standard key derivation
+      const ownerKey = dsteem.PrivateKey.fromLogin(loggedInUser, importPassword, 'owner');
+      const activeKey = dsteem.PrivateKey.fromLogin(loggedInUser, importPassword, 'active');
+      const postingKey = dsteem.PrivateKey.fromLogin(loggedInUser, importPassword, 'posting');
+      const memoKey = dsteem.PrivateKey.fromLogin(loggedInUser, importPassword, 'memo');
+
+      // Verify at least one key matches the account's public keys
+      const activePublic = activeKey.createPublic().toString();
+      const accountActiveKey = accountData?.active?.key_auths?.[0]?.[0];
+      
+      if (accountActiveKey && activePublic !== accountActiveKey) {
+        throw new Error('The master password does not match this account. Please check your password.');
+      }
+
+      // Store all keys securely
+      const storage = SecureStorageFactory.getInstance();
+      await storage.setItem('steem_master_password', importPassword);
+      await storage.setItem('steem_owner_key', ownerKey.toString());
+      await storage.setItem('steem_active_key', activeKey.toString());
+      await storage.setItem('steem_posting_key', postingKey.toString());
+      await storage.setItem('steem_memo_key', memoKey.toString());
+      await storage.setItem('steem_login_method', 'masterpassword');
+
+      // Update local state
+      setLoginMethod('masterpassword');
+
+      // Generate the revealed keys structure
+      const privateKeys = steemOperations.generateKeys(loggedInUser, importPassword, ['owner', 'active', 'posting', 'memo']);
+      setRevealedPrivateKeys(privateKeys);
+      setShowPrivateKeys(true);
+
+      toast({
+        title: "Keys Imported Successfully",
+        description: "All 4 keys (owner, active, posting, memo) have been imported and are now revealed.",
+      });
+
+      // Close dialog and reset
+      setShowImportDialog(false);
+      setImportPassword('');
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: error.message || "Failed to import keys from master password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleTogglePrivateKeys = async () => {
+    // If keys are already shown, hide them
+    if (showPrivateKeys) {
+      setShowPrivateKeys(false);
+      setRevealedPrivateKeys(null);
+      return;
+    }
+
+    // Otherwise, reveal the keys
     if (!loggedInUser || !canRevealPrivateKeys()) {
       toast({
         title: "Access Denied",
@@ -55,21 +144,23 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
     }
 
     try {
-      const masterPassword = localStorage.getItem('steem_master_password');
+      const storage = SecureStorageFactory.getInstance();
+      const masterPassword = await storage.getItem('steem_master_password');
       const storedKeys = {
-        owner: localStorage.getItem('steem_owner_key'),
-        active: localStorage.getItem('steem_active_key'),
-        posting: localStorage.getItem('steem_posting_key'),
-        memo: localStorage.getItem('steem_memo_key')
+        owner: await storage.getItem('steem_owner_key'),
+        active: await storage.getItem('steem_active_key'),
+        posting: await storage.getItem('steem_posting_key'),
+        memo: await storage.getItem('steem_memo_key')
       };
 
       let privateKeys: any = {};
 
       if (masterPassword) {
-        // Generate keys from master password using the correct method
+        // Generate keys from master password using the same mechanism as steemitwallet.com:
+        // private_key = PrivateKey.fromSeed(username + role + password)
         privateKeys = steemOperations.generateKeys(loggedInUser, masterPassword, ['owner', 'active', 'posting', 'memo']);
       } else {
-        // Use stored private keys
+        // Use stored private keys (when logged in with individual private key)
         Object.entries(storedKeys).forEach(([role, key]) => {
           if (key) {
             privateKeys[role] = {
@@ -116,8 +207,9 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       return;
     }
 
-    const ownerKey = localStorage.getItem('steem_owner_key');
-    const activeKey = localStorage.getItem('steem_active_key');
+    const storage = SecureStorageFactory.getInstance();
+    const ownerKey = await storage.getItem('steem_owner_key');
+    const activeKey = await storage.getItem('steem_active_key');
     
     if (!ownerKey && !activeKey) {
       toast({
@@ -158,12 +250,21 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
   const handleConfirmPasswordChange = async () => {
     if (!generatedKeys || !loggedInUser || !passwordData.confirmReady) return;
 
+    // CRITICAL: Prevent duplicate submissions
+    if (passwordChangeSubmittedRef.current || isLoading) {
+      console.log('Blocking duplicate password change submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    passwordChangeSubmittedRef.current = true;
     setIsLoading(true);
 
     try {
+      const storage = SecureStorageFactory.getInstance();
       // Try owner key first, then active key
-      const ownerKeyString = localStorage.getItem('steem_owner_key');
-      const activeKeyString = localStorage.getItem('steem_active_key');
+      const ownerKeyString = await storage.getItem('steem_owner_key');
+      const activeKeyString = await storage.getItem('steem_active_key');
       
       let privateKey: dsteem.PrivateKey;
       if (ownerKeyString) {
@@ -176,6 +277,8 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
           description: "Owner or Active key is required for password change",
           variant: "destructive",
         });
+        passwordChangeSubmittedRef.current = false;
+        setIsLoading(false);
         return;
       }
 
@@ -221,13 +324,29 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       // Clear sensitive data
       setPasswordData({ oldPassword: '', newPassword: '', confirmReady: false });
       setGeneratedKeys(null);
+      setIsLoading(false);
+      // Keep ref as true to prevent accidental double submissions
     } catch (error: any) {
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Password Already Changed",
+          description: "Your password change was already submitted. Please save your new keys!",
+        });
+        setPasswordData({ oldPassword: '', newPassword: '', confirmReady: false });
+        setGeneratedKeys(null);
+        setIsLoading(false);
+        return;
+      }
+      
       toast({
         title: "Password Change Failed",
         description: error.message || "Failed to change password",
         variant: "destructive",
       });
-    } finally {
+      // CRITICAL: Reset ref so user can retry on genuine errors
+      passwordChangeSubmittedRef.current = false;
       setIsLoading(false);
     }
   };
@@ -242,68 +361,68 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       return;
     }
 
+    // CRITICAL: Prevent duplicate submissions
+    if (resetAccountSubmittedRef.current || isLoading) {
+      console.log('Blocking duplicate reset account submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    resetAccountSubmittedRef.current = true;
     setIsLoading(true);
 
     try {
-      if (loginMethod === 'keychain') {
-        window.steem_keychain.requestBroadcast(
-          loggedInUser,
-          [['set_reset_account', {
-            account: loggedInUser,
-            current_reset_account: resetAccountData.currentResetAccount,
-            reset_account: resetAccountData.newResetAccount
-          }]],
-          'Owner',
-          (response: any) => {
-            if (response.success) {
-              toast({
-                title: "Reset Account Updated",
-                description: "Your recovery account has been set successfully",
-              });
-              setResetAccountData({ currentResetAccount: '', newResetAccount: '' });
-            } else {
-              toast({
-                title: "Operation Failed",
-                description: response.message || "Failed to set reset account",
-                variant: "destructive",
-              });
-            }
-            setIsLoading(false);
-          }
-        );
-      } else {
-        const ownerKeyString = localStorage.getItem('steem_owner_key');
-        if (!ownerKeyString) {
-          toast({
-            title: "Owner Key Required",
-            description: "Owner key is required for this operation",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const ownerKey = dsteem.PrivateKey.fromString(ownerKeyString);
-        
-        await steemOperations.setResetAccount({
-          account: loggedInUser,
-          current_reset_account: resetAccountData.currentResetAccount,
-          reset_account: resetAccountData.newResetAccount
-        }, ownerKey);
-
+      const storage = SecureStorageFactory.getInstance();
+      const ownerKeyString = await storage.getItem('steem_owner_key');
+      if (!ownerKeyString) {
         toast({
-          title: "Reset Account Updated",
-          description: "Your recovery account has been set successfully",
+          title: "Owner Key Required",
+          description: "Owner key is required for this operation",
+          variant: "destructive",
         });
+        resetAccountSubmittedRef.current = false;
+        setIsLoading(false);
+        return;
+      }
 
+      const ownerKey = dsteem.PrivateKey.fromString(ownerKeyString);
+      
+      await steemOperations.setResetAccount({
+        account: loggedInUser,
+        current_reset_account: resetAccountData.currentResetAccount,
+        reset_account: resetAccountData.newResetAccount
+      }, ownerKey);
+
+      toast({
+        title: "Reset Account Updated",
+        description: "Your recovery account has been set successfully",
+      });
+
+      setResetAccountData({ currentResetAccount: '', newResetAccount: '' });
+      setIsLoading(false);
+      // Reset ref after successful operation
+      resetAccountSubmittedRef.current = false;
+    } catch (error: any) {
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Reset Account Already Updated",
+          description: "Your recovery account change was already submitted.",
+        });
         setResetAccountData({ currentResetAccount: '', newResetAccount: '' });
         setIsLoading(false);
+        resetAccountSubmittedRef.current = false;
+        return;
       }
-    } catch (error: any) {
+      
       toast({
         title: "Operation Failed",
         description: error.message || "Failed to set reset account",
         variant: "destructive",
       });
+      // CRITICAL: Reset ref so user can retry on genuine errors
+      resetAccountSubmittedRef.current = false;
       setIsLoading(false);
     }
   };
@@ -329,14 +448,14 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
 
   if (!loggedInUser) {
     return (
-      <Card>
+      <Card className="bg-slate-800/50 border border-slate-700">
         <CardContent className="p-6">
           <div className="text-center">
-            <Shield className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+            <Shield className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-white mb-2">
               Account Security
             </h3>
-            <p className="text-gray-500">
+            <p className="text-slate-400">
               Please log in to access account security features
             </p>
           </div>
@@ -347,22 +466,23 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="bg-slate-800/50 border border-slate-700">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-600" />
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Shield className="w-5 h-5 text-blue-400" />
             Account Security
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-slate-400">
             Manage your account security settings, keys, and recovery options
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="keys">Keys</TabsTrigger>
-              <TabsTrigger value="recovery">Recovery</TabsTrigger>
-              <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 bg-slate-800/50 border border-slate-700">
+              <TabsTrigger value="keys" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white">Keys</TabsTrigger>
+              <TabsTrigger value="recovery" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white">Recovery</TabsTrigger>
+              <TabsTrigger value="password" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white">Password</TabsTrigger>
+              <TabsTrigger value="applock" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white">App Lock</TabsTrigger>
             </TabsList>
 
             <TabsContent value="keys" className="space-y-6">
@@ -371,29 +491,40 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-lg font-semibold">Current Account Keys</Label>
-                    {canRevealPrivateKeys() && (
+                    <div className="flex items-center gap-2">
                       <Button
-                        onClick={handleRevealPrivateKeys}
+                        onClick={() => setShowImportDialog(true)}
                         variant="outline"
                         size="sm"
                         className="flex items-center gap-2"
                       >
-                        {showPrivateKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        {showPrivateKeys ? 'Hide' : 'Reveal'} Private Keys
+                        <Download className="w-4 h-4" />
+                        Import All Keys
                       </Button>
-                    )}
+                      {canRevealPrivateKeys() && (
+                        <Button
+                          onClick={handleTogglePrivateKeys}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2"
+                        >
+                          {showPrivateKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {showPrivateKeys ? 'Hide' : 'Reveal'} Private Keys
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid gap-4">
                     {/* Owner Key */}
-                    <div className="border rounded-lg p-4">
+                    <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/30">
                       <div className="flex items-center justify-between mb-2">
-                        <Label className="font-semibold text-red-600">Owner Key</Label>
+                        <Label className="font-semibold text-red-400">Owner Key</Label>
                         <Badge variant="destructive">Highest Authority</Badge>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 w-16">Public:</span>
+                          <span className="text-xs text-slate-400 w-16">Public:</span>
                           <Input
                             value={accountData.owner?.key_auths?.[0]?.[0] || 'N/A'}
                             readOnly
@@ -409,11 +540,11 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                         </div>
                         {showPrivateKeys && revealedPrivateKeys?.owner && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 w-16">Private:</span>
+                            <span className="text-xs text-slate-400 w-16">Private:</span>
                             <Input
                               value={revealedPrivateKeys.owner.private}
                               readOnly
-                              className="font-mono text-xs bg-red-50"
+                              className="font-mono text-xs bg-red-950/30 border-red-900/50 text-red-400"
                               type="password"
                             />
                             <Button
@@ -429,14 +560,14 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                     </div>
 
                     {/* Active Key */}
-                    <div className="border rounded-lg p-4">
+                    <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/30">
                       <div className="flex items-center justify-between mb-2">
-                        <Label className="font-semibold text-orange-600">Active Key</Label>
+                        <Label className="font-semibold text-orange-400">Active Key</Label>
                         <Badge variant="secondary">Financial Operations</Badge>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 w-16">Public:</span>
+                          <span className="text-xs text-slate-400 w-16">Public:</span>
                           <Input
                             value={accountData.active?.key_auths?.[0]?.[0] || 'N/A'}
                             readOnly
@@ -452,11 +583,11 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                         </div>
                         {showPrivateKeys && revealedPrivateKeys?.active && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 w-16">Private:</span>
+                            <span className="text-xs text-slate-400 w-16">Private:</span>
                             <Input
                               value={revealedPrivateKeys.active.private}
                               readOnly
-                              className="font-mono text-xs bg-orange-50"
+                              className="font-mono text-xs bg-orange-950/30 border-orange-900/50 text-orange-400"
                               type="password"
                             />
                             <Button
@@ -472,14 +603,14 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                     </div>
 
                     {/* Posting Key */}
-                    <div className="border rounded-lg p-4">
+                    <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/30">
                       <div className="flex items-center justify-between mb-2">
-                        <Label className="font-semibold text-blue-600">Posting Key</Label>
+                        <Label className="font-semibold text-blue-400">Posting Key</Label>
                         <Badge variant="outline">Content & Social</Badge>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 w-16">Public:</span>
+                          <span className="text-xs text-slate-400 w-16">Public:</span>
                           <Input
                             value={accountData.posting?.key_auths?.[0]?.[0] || 'N/A'}
                             readOnly
@@ -495,11 +626,11 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                         </div>
                         {showPrivateKeys && revealedPrivateKeys?.posting && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 w-16">Private:</span>
+                            <span className="text-xs text-slate-400 w-16">Private:</span>
                             <Input
                               value={revealedPrivateKeys.posting.private}
                               readOnly
-                              className="font-mono text-xs bg-blue-50"
+                              className="font-mono text-xs bg-blue-950/30 border-blue-900/50 text-blue-400"
                               type="password"
                             />
                             <Button
@@ -514,8 +645,8 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                         {accountData.posting?.account_auths?.length > 0 && (
                           <div className="mt-2">
                             <div className="flex items-center gap-2 mb-1">
-                              <Users className="w-4 h-4 text-gray-500" />
-                              <span className="text-xs text-gray-500">Authorized Accounts:</span>
+                              <Users className="w-4 h-4 text-slate-400" />
+                              <span className="text-xs text-slate-400">Authorized Accounts:</span>
                             </div>
                             <div className="flex flex-wrap gap-1">
                               {accountData.posting.account_auths.map(([account]: [string, number]) => (
@@ -530,14 +661,14 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                     </div>
 
                     {/* Memo Key */}
-                    <div className="border rounded-lg p-4">
+                    <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/30">
                       <div className="flex items-center justify-between mb-2">
-                        <Label className="font-semibold text-green-600">Memo Key</Label>
+                        <Label className="font-semibold text-green-400">Memo Key</Label>
                         <Badge variant="outline">Private Messages</Badge>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 w-16">Public:</span>
+                          <span className="text-xs text-slate-400 w-16">Public:</span>
                           <Input
                             value={accountData.memo_key || 'N/A'}
                             readOnly
@@ -553,11 +684,11 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                         </div>
                         {showPrivateKeys && revealedPrivateKeys?.memo && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 w-16">Private:</span>
+                            <span className="text-xs text-slate-400 w-16">Private:</span>
                             <Input
                               value={revealedPrivateKeys.memo.private}
                               readOnly
-                              className="font-mono text-xs bg-green-50"
+                              className="font-mono text-xs bg-green-950/30 border-green-900/50 text-green-400"
                               type="password"
                             />
                             <Button
@@ -599,13 +730,13 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                   <Label className="font-semibold mb-2 block">Current Recovery Status</Label>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Recovery Account:</span>
+                      <span className="text-sm text-slate-400">Recovery Account:</span>
                       <Badge variant="outline">
                         @{accountData?.recovery_account || 'steemit'}
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Reset Account:</span>
+                      <span className="text-sm text-slate-400">Reset Account:</span>
                       <Badge variant={accountData?.reset_account === 'null' ? 'secondary' : 'outline'}>
                         {accountData?.reset_account === 'null' ? 'Not Set' : `@${accountData?.reset_account}`}
                       </Badge>
@@ -767,9 +898,262 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
                 )}
               </div>
             </TabsContent>
+
+            {/* App Lock Tab */}
+            <TabsContent value="applock" className="space-y-6">
+              <Alert>
+                <Lock className="h-4 w-4" />
+                <AlertDescription>
+                  App Lock is a separate password that protects access to this wallet app. 
+                  It's different from your Steem account password.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-4">
+                {/* Change App Lock Password */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Key className="h-4 w-4 text-blue-500" />
+                      Change App Lock Password
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      Update your app lock password while keeping your Steem credentials intact.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => setShowChangePasswordDialog(true)}
+                      className="w-full"
+                    >
+                      <Key className="h-4 w-4 mr-2" />
+                      Change Password
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Lock Wallet Now */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-orange-500" />
+                      Lock Wallet Now
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      Manually lock the wallet. You'll need to enter your app lock password to continue.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() => {
+                        // Reload the page to trigger the lock screen
+                        window.location.reload();
+                      }}
+                    >
+                      <Lock className="h-4 w-4 mr-2" />
+                      Lock Wallet
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Reset App (Danger Zone) */}
+                <Card className="bg-red-950/30 border-red-900/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2 text-red-400">
+                      <Trash2 className="h-4 w-4" />
+                      Reset Wallet App
+                    </CardTitle>
+                    <CardDescription className="text-sm text-red-300/70">
+                      Forgot your app lock password? Reset the entire app. This will delete all saved data.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Alert variant="destructive" className="bg-red-950/50 border-red-900">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Warning:</strong> This will permanently delete:
+                        <ul className="list-disc list-inside mt-1 text-sm">
+                          <li>Your app lock password</li>
+                          <li>All saved Steem accounts</li>
+                          <li>All stored private keys</li>
+                          <li>All app settings</li>
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="destructive"
+                          className="w-full"
+                          disabled={isResettingApp}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Reset Entire App
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="flex items-center gap-2 text-red-400">
+                            <AlertTriangle className="h-5 w-5" />
+                            Reset Entire App?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="space-y-2">
+                            <p>This action cannot be undone. All your data will be permanently deleted.</p>
+                            <p className="font-medium text-amber-400">
+                              You will need to set up a new app lock password and log in again with your Steem credentials.
+                            </p>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              setIsResettingApp(true);
+                              try {
+                                const appLock = AppLockService.getInstance();
+                                await appLock.resetApp();
+                                toast({
+                                  title: "App Reset Complete",
+                                  description: "All data has been cleared. The app will reload.",
+                                  variant: "destructive",
+                                });
+                                setTimeout(() => {
+                                  window.location.reload();
+                                }, 1500);
+                              } catch (error) {
+                                console.error('Reset error:', error);
+                                toast({
+                                  title: "Reset Failed",
+                                  description: "Could not reset the app. Please try again.",
+                                  variant: "destructive",
+                                });
+                              } finally {
+                                setIsResettingApp(false);
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                            disabled={isResettingApp}
+                          >
+                            {isResettingApp ? 'Resetting...' : 'Yes, Reset Everything'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </CardContent>
+                </Card>
+
+                {/* Auto-lock Info */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-green-500" />
+                      Auto-Lock Settings
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    <p>Your wallet automatically locks after <strong>15 minutes</strong> of inactivity.</p>
+                    <p className="mt-2">A warning notification appears 1 minute before auto-lock.</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Change App Lock Password Dialog */}
+      <ChangePasswordDialog 
+        isOpen={showChangePasswordDialog}
+        onClose={() => setShowChangePasswordDialog(false)}
+      />
+
+      {/* Import Keys Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-blue-500" />
+              Import All Keys from Master Password
+            </DialogTitle>
+            <DialogDescription>
+              Enter your master password to derive and import all 4 keys (owner, active, posting, memo). 
+              This uses the same key derivation as steemitwallet.com.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Your master password will be stored securely to allow key revelation. 
+                Make sure you're in a secure environment.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="space-y-2">
+              <Label htmlFor="masterPassword">Master Password</Label>
+              <div className="relative">
+                <Input
+                  id="masterPassword"
+                  type={showImportPassword ? "text" : "password"}
+                  value={importPassword}
+                  onChange={(e) => setImportPassword(e.target.value)}
+                  placeholder="Enter your master password"
+                  className="bg-slate-800 border-slate-700 pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowImportPassword(!showImportPassword)}
+                >
+                  {showImportPassword ? (
+                    <EyeOff className="h-4 w-4 text-slate-400" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-slate-400" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-400">
+                The master password will be used to derive: owner, active, posting, and memo keys.
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowImportDialog(false);
+                setImportPassword('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportKeys}
+              disabled={!importPassword || isImporting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isImporting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Import Keys
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

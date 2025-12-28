@@ -1,39 +1,74 @@
+/**
+ * Updated LoginDialog with Tauri secure storage
+ * Credentials are encrypted using AES-256-GCM and stored securely
+ * Includes rate limiting and input validation for enhanced security
+ */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { LogIn, Wallet, Lock, Eye, EyeOff, LogOut } from "lucide-react";
+import { LogIn, Lock, Eye, EyeOff, LogOut, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import * as dsteem from 'dsteem';
+import { SecureStorageFactory } from "@/services/secureStorage";
+import { accountManager } from "@/services/accountManager";
+import { sanitizeUsername, isValidSteemUsername, loginRateLimiter } from "@/utils/security";
+import { steemApi } from "@/services/steemApi";
 
 interface LoginDialogProps {
   children: React.ReactNode;
-  onLoginSuccess: (username: string, loginMethod: 'keychain' | 'privatekey' | 'masterpassword') => void;
+  onLoginSuccess: (username: string, loginMethod: 'privatekey' | 'masterpassword') => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-declare global {
-  interface Window {
-    steem_keychain: any;
-  }
-}
-
-const LoginDialog = ({ children, onLoginSuccess }: LoginDialogProps) => {
+const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpenChange }: LoginDialogProps) => {
   const [username, setUsername] = useState("");
   const [credential, setCredential] = useState("");
-  const [useKeychain, setUseKeychain] = useState(false);
   const [showCredential, setShowCredential] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isLogging, setIsLogging] = useState(false);
+  const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Support both controlled and uncontrolled modes
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+  const setIsOpen = (open: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(open);
+    } else {
+      setInternalIsOpen(open);
+    }
+  };
+
+  // Handle username input with sanitization
+  const handleUsernameChange = (value: string) => {
+    setUsername(sanitizeUsername(value));
+  };
+
   const handleLogin = () => {
-    if (!username) {
+    // Check rate limiting
+    if (!loginRateLimiter.isAllowed()) {
+      const waitTime = Math.ceil(loginRateLimiter.getWaitTime() / 1000);
+      setRateLimitWarning(`Too many login attempts. Please wait ${waitTime} seconds.`);
+      toast({
+        title: "Rate Limited",
+        description: `Please wait ${waitTime} seconds before trying again.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setRateLimitWarning(null);
+
+    // Validate username
+    const sanitizedUsername = sanitizeUsername(username);
+    if (!sanitizedUsername) {
       toast({
         title: "Missing Username",
         description: "Please provide your username",
@@ -42,61 +77,193 @@ const LoginDialog = ({ children, onLoginSuccess }: LoginDialogProps) => {
       return;
     }
 
-    if (useKeychain) {
-      handleKeychainLogin();
-    } else {
-      if (!credential) {
-        toast({
-          title: "Missing Credential",
-          description: "Please provide your private key or master password",
-          variant: "destructive",
-        });
-        return;
-      }
-      handleCredentialLogin();
+    if (!isValidSteemUsername(sanitizedUsername)) {
+      toast({
+        title: "Invalid Username",
+        description: "Username must be 3-16 characters, start with a letter, and contain only lowercase letters, numbers, dots, or dashes.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    // Record the login attempt for rate limiting
+    loginRateLimiter.recordAttempt();
+
+    if (!credential) {
+      toast({
+        title: "Missing Credential",
+        description: "Please provide your private key or master password",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleCredentialLogin();
   };
 
-  const handleCredentialLogin = () => {
+  const handleCredentialLogin = async () => {
     setIsLogging(true);
     
     try {
+      const storage = SecureStorageFactory.getInstance();
+      
       // Check if it's a private key (starts with '5')
       if (credential.startsWith('5')) {
-        // Handle as private key
-        localStorage.setItem('steem_username', username);
-        localStorage.setItem('steem_active_key', credential);
-        localStorage.setItem('steem_login_method', 'privatekey');
+        // Validate private key format
+        if (credential.length < 50) {
+          throw new Error('Private key is too short');
+        }
+        
+        // Derive public key from the private key
+        let derivedPublicKey: string;
+        try {
+          const privateKey = dsteem.PrivateKey.fromString(credential);
+          derivedPublicKey = privateKey.createPublic().toString();
+        } catch (e) {
+          throw new Error('Invalid private key format');
+        }
+        
+        // Fetch account data to determine which key type this is
+        const accountData = await steemApi.getAccount(username);
+        if (!accountData) {
+          throw new Error('Account not found');
+        }
+        
+        // Helper function to check if a public key exists in key_auths array
+        const keyExistsInAuth = (keyAuths: [string, number][] | undefined, pubKey: string): boolean => {
+          if (!keyAuths || !Array.isArray(keyAuths)) return false;
+          return keyAuths.some(([key]) => key === pubKey);
+        };
+        
+        // Determine which key type matches
+        let keyType: 'owner' | 'active' | 'posting' | 'memo' | null = null;
+        
+        // Debug logging - only in development mode
+        if (import.meta.env.DEV) {
+          console.log('=== Private Key Login Debug ===');
+          console.log('Derived public key:', derivedPublicKey);
+          console.log('Account owner keys:', accountData.owner?.key_auths?.map(k => k[0]));
+          console.log('Account active keys:', accountData.active?.key_auths?.map(k => k[0]));
+          console.log('Account posting keys:', accountData.posting?.key_auths?.map(k => k[0]));
+          console.log('Account memo key:', accountData.memo_key);
+          console.log('===============================');
+        }
+        
+        // Check owner key (check all keys in the authority)
+        if (keyExistsInAuth(accountData.owner?.key_auths, derivedPublicKey)) {
+          keyType = 'owner';
+        }
+        // Check active key (check all keys in the authority)
+        else if (keyExistsInAuth(accountData.active?.key_auths, derivedPublicKey)) {
+          keyType = 'active';
+        }
+        // Check posting key (check all keys in the authority)
+        else if (keyExistsInAuth(accountData.posting?.key_auths, derivedPublicKey)) {
+          keyType = 'posting';
+        }
+        // Check memo key
+        else if (accountData.memo_key === derivedPublicKey) {
+          keyType = 'memo';
+        }
+        
+        if (!keyType) {
+          throw new Error('Private key does not match any of the account\'s public keys. Please ensure you are using the correct key for this account.');
+        }
+        
+        // Handle as private key - store securely using account manager
+        const credentials: any = {
+          username,
+          loginMethod: 'privatekey' as const,
+          importedKeyType: keyType,
+        };
+        credentials[`${keyType}Key`] = credential;
+        
+        await accountManager.addAccount(credentials);
+        
+        const keyTypeLabels = {
+          owner: 'Owner',
+          active: 'Active', 
+          posting: 'Posting',
+          memo: 'Memo'
+        };
         
         toast({
           title: "Login Successful",
-          description: `Logged in as @${username} with Private Key`,
+          description: `Logged in as @${username} with ${keyTypeLabels[keyType]} Key`,
         });
         
         onLoginSuccess(username, 'privatekey');
       } else {
-        // Handle as master password
-        const activeKey = dsteem.PrivateKey.fromLogin(username, credential, 'active');
-        
-        localStorage.setItem('steem_username', username);
-        localStorage.setItem('steem_active_key', activeKey.toString());
-        localStorage.setItem('steem_login_method', 'masterpassword');
-        
-        toast({
-          title: "Login Successful",
-          description: `Logged in as @${username} with Master Password`,
-        });
-        
-        onLoginSuccess(username, 'masterpassword');
+        // Handle as master password - derive ALL 4 keys (owner, active, posting, memo)
+        // This uses the same mechanism as steemitwallet.com:
+        // private_key = PrivateKey.fromSeed(username + role + password)
+        try {
+          // Fetch account data to validate the derived keys
+          const accountData = await steemApi.getAccount(username);
+          if (!accountData) {
+            throw new Error('Account not found');
+          }
+          
+          // Derive all 4 keys from master password using Steem's standard key derivation
+          const ownerKey = dsteem.PrivateKey.fromLogin(username, credential, 'owner');
+          const activeKey = dsteem.PrivateKey.fromLogin(username, credential, 'active');
+          const postingKey = dsteem.PrivateKey.fromLogin(username, credential, 'posting');
+          const memoKey = dsteem.PrivateKey.fromLogin(username, credential, 'memo');
+          
+          // Derive public keys from the private keys
+          const derivedOwnerPubKey = ownerKey.createPublic().toString();
+          const derivedActivePubKey = activeKey.createPublic().toString();
+          const derivedPostingPubKey = postingKey.createPublic().toString();
+          const derivedMemoPubKey = memoKey.createPublic().toString();
+          
+          // Get account's actual public keys
+          const accountOwnerPubKey = accountData.owner?.key_auths?.[0]?.[0];
+          const accountActivePubKey = accountData.active?.key_auths?.[0]?.[0];
+          const accountPostingPubKey = accountData.posting?.key_auths?.[0]?.[0];
+          const accountMemoPubKey = accountData.memo_key;
+          
+          // Validate that at least one derived key matches the account's public keys
+          // This ensures the password is correct for this account
+          const ownerMatches = derivedOwnerPubKey === accountOwnerPubKey;
+          const activeMatches = derivedActivePubKey === accountActivePubKey;
+          const postingMatches = derivedPostingPubKey === accountPostingPubKey;
+          const memoMatches = derivedMemoPubKey === accountMemoPubKey;
+          
+          if (!ownerMatches && !activeMatches && !postingMatches && !memoMatches) {
+            throw new Error('Invalid master password. The derived keys do not match any of the account\'s public keys.');
+          }
+          
+          // Store all keys securely using account manager
+          await accountManager.addAccount({
+            username,
+            loginMethod: 'masterpassword',
+            ownerKey: ownerKey.toString(),
+            activeKey: activeKey.toString(),
+            postingKey: postingKey.toString(),
+            memoKey: memoKey.toString(),
+            masterPassword: credential,
+          });
+          
+          toast({
+            title: "Login Successful",
+            description: `Logged in as @${username} with Master Password. All keys imported.`,
+          });
+          
+          onLoginSuccess(username, 'masterpassword');
+        } catch (keyError) {
+          const errorMsg = keyError instanceof Error ? keyError.message : 'Failed to derive keys from master password. Please check your username and password.';
+          throw new Error(errorMsg);
+        }
       }
       
       setIsOpen(false);
       setUsername("");
       setCredential("");
     } catch (error) {
+      console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Invalid credentials. Please check your private key or master password.';
       toast({
         title: "Login Failed",
-        description: "Invalid credentials. Please check your private key or master password.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -104,66 +271,17 @@ const LoginDialog = ({ children, onLoginSuccess }: LoginDialogProps) => {
     }
   };
 
-  const handleKeychainLogin = () => {
-    if (typeof window !== 'undefined' && window.steem_keychain) {
-      setIsLogging(true);
-      
-      // First, check if Keychain is available
-      window.steem_keychain.requestHandshake(() => {
-        console.log('Keychain handshake successful');
-        
-        // Now request message signing for authentication
-        const loginMessage = `Login to Steem Wallet\nUsername: ${username}\nTimestamp: ${Date.now()}`;
-        
-        window.steem_keychain.requestSignBuffer(
-          username,
-          loginMessage,
-          'Posting',
-          (response: any) => {
-            console.log('Keychain sign response:', response);
-            
-            if (response.success) {
-              // Authentication successful
-              localStorage.setItem('steem_username', username);
-              localStorage.setItem('steem_login_method', 'keychain');
-              localStorage.setItem('steem_keychain_signature', response.result);
-              
-              toast({
-                title: "Keychain Authentication Successful",
-                description: `Successfully authenticated as @${username} via Steem Keychain`,
-              });
-              
-              onLoginSuccess(username, 'keychain');
-              setIsOpen(false);
-              setUsername("");
-              setIsLogging(false);
-            } else {
-              console.error('Keychain authentication failed:', response);
-              toast({
-                title: "Authentication Failed",
-                description: response.message || "Failed to authenticate with Keychain. Please try again.",
-                variant: "destructive",
-              });
-              setIsLogging(false);
-            }
-          }
-        );
-      });
-    } else {
-      toast({
-        title: "Keychain Not Found",
-        description: "Please install Steem Keychain browser extension",
-        variant: "destructive",
-      });
-      setIsLogging(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('steem_username');
-    localStorage.removeItem('steem_active_key');
-    localStorage.removeItem('steem_login_method');
-    localStorage.removeItem('steem_keychain_signature');
+  const handleLogout = async () => {
+    const storage = SecureStorageFactory.getInstance();
+    
+    // Clear all stored credentials from secure storage
+    await storage.removeItem('steem_username');
+    await storage.removeItem('steem_master_password');
+    await storage.removeItem('steem_owner_key');
+    await storage.removeItem('steem_active_key');
+    await storage.removeItem('steem_posting_key');
+    await storage.removeItem('steem_memo_key');
+    await storage.removeItem('steem_login_method');
     
     // Redirect to homepage after logout
     navigate('/');
@@ -177,18 +295,18 @@ const LoginDialog = ({ children, onLoginSuccess }: LoginDialogProps) => {
     window.location.reload();
   };
 
-  // Check if user is already logged in
-  const isLoggedIn = localStorage.getItem('steem_username');
+  // Check if user is already logged in (using sessionStorage for backwards compatibility)
+  const isLoggedIn = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('steem_username') : null;
 
   if (isLoggedIn) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600">@{isLoggedIn}</span>
+        <span className="text-sm text-slate-400">@{isLoggedIn}</span>
         <Button 
           onClick={handleLogout}
           variant="outline"
           size="sm"
-          className="text-red-600 border-red-200 hover:bg-red-50"
+          className="text-red-400 border-red-900/50 hover:bg-red-950/50"
         >
           <LogOut className="w-4 h-4 mr-1" />
           Logout
@@ -202,126 +320,101 @@ const LoginDialog = ({ children, onLoginSuccess }: LoginDialogProps) => {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="bg-white max-w-md border-0 shadow-2xl">
-        <DialogHeader className="text-center pb-2">
-          <DialogTitle className="flex items-center justify-center gap-3 text-xl" style={{ color: '#07d7a9' }}>
-            <div className="p-2 rounded-full" style={{ backgroundColor: '#07d7a915' }}>
-              <LogIn className="w-6 h-6" />
+      <DialogContent className="border-0 shadow-none p-0 bg-transparent" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">Steem Wallet Login</DialogTitle>
+        <Card className="w-full max-w-md bg-slate-900 border-slate-800">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center">
+              <LogIn className="h-8 w-8 text-steemit-500" />
             </div>
-            Steemit Wallet Login
-          </DialogTitle>
-          <DialogDescription className="text-gray-600">
-            Access your Steem wallet securely. Your credentials never leave your browser.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <Card className="border-0 shadow-none bg-gradient-to-br from-gray-50 to-white">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg text-center text-gray-800">
-              Premium Access
+            <CardTitle className="flex items-center justify-center gap-2 text-xl">
+              <Lock className="h-5 w-5 text-steemit-500" />
+              Steem Wallet Login
             </CardTitle>
-            <CardDescription className="text-center text-gray-600">
-              Connect with your preferred authentication method
+            <CardDescription>
+              Enter your credentials to access your wallet
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+
+          <CardContent className="space-y-4">
+            {/* Rate Limit Warning */}
+            {rateLimitWarning && (
+              <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                <span className="text-sm text-yellow-300">{rateLimitWarning}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="username" className="text-sm font-medium text-slate-300">
                 Username
               </Label>
               <Input
                 id="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => handleUsernameChange(e.target.value)}
                 placeholder="Enter your username"
-                className="border-gray-300 focus:border-[#07d7a9] focus:ring-[#07d7a9] transition-colors"
+                maxLength={16}
+                autoComplete="username"
               />
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="keychain" 
-                  checked={useKeychain}
-                  onCheckedChange={(checked) => setUseKeychain(checked as boolean)}
-                  className="data-[state=checked]:bg-[#07d7a9] data-[state=checked]:border-[#07d7a9]"
+            <div className="space-y-2">
+              <Label htmlFor="credential" className="text-sm font-medium text-slate-300">
+                Private Key or Master Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="credential"
+                  type={showCredential ? "text" : "password"}
+                  value={credential}
+                  onChange={(e) => setCredential(e.target.value)}
+                  placeholder="5K... (private key) or master password"
+                  className="pr-10"
                 />
-                <Label htmlFor="keychain" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Wallet className="w-4 h-4" />
-                  Use Steem Keychain (Recommended)
-                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowCredential(!showCredential)}
+                >
+                  {showCredential ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
               </div>
-
-              {!useKeychain && (
-                <div className="space-y-2">
-                  <Label htmlFor="credential" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <Lock className="w-4 h-4" />
-                    Private Key or Master Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="credential"
-                      type={showCredential ? "text" : "password"}
-                      value={credential}
-                      onChange={(e) => setCredential(e.target.value)}
-                      placeholder="5K... (private key) or master password"
-                      className="border-gray-300 focus:border-[#07d7a9] focus:ring-[#07d7a9] transition-colors pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowCredential(!showCredential)}
-                    >
-                      {showCredential ? (
-                        <EyeOff className="h-4 w-4 text-gray-400" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-gray-400" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Enter your private active key (5K...) or master password. 
-                    The system will automatically detect which one you're using.
-                  </p>
-                </div>
-              )}
-
-              {useKeychain && (
-                <div className="text-center py-6">
-                  <div className="p-4 rounded-full mx-auto w-16 h-16 flex items-center justify-center" style={{ backgroundColor: '#07d7a915' }}>
-                    <Wallet className="w-8 h-8" style={{ color: '#07d7a9' }} />
-                  </div>
-                  <p className="text-sm text-gray-600 mt-3">
-                    Click login to authenticate with Steem Keychain. You'll be asked to sign a message to verify your identity.
-                  </p>
-                </div>
-              )}
+              <p className="text-xs text-slate-400">
+                Enter your private active key (5K...) or master password. The system will automatically detect which one you're using.
+              </p>
             </div>
 
             <Button 
               onClick={handleLogin}
-              className="w-full text-white font-medium py-3 transition-all hover:shadow-lg"
-              style={{ backgroundColor: '#07d7a9' }}
-              disabled={!username || (!useKeychain && !credential) || isLogging}
+              className="w-full bg-steemit-500 hover:bg-steemit-600 text-white"
+              disabled={!username || !credential || isLogging}
             >
               {isLogging ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {useKeychain ? "Authenticating..." : "Logging in..."}
+                  Logging in...
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  {useKeychain ? <Wallet className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                  {useKeychain ? "Authenticate with Keychain" : "Login"}
+                  <Lock className="w-4 h-4" />
+                  Login
                 </div>
               )}
             </Button>
 
             <div className="text-center">
-              <p className="text-xs text-gray-500">
-                🔒 Your credentials are stored locally and never transmitted to any server
+              <p className="text-xs text-slate-400">
+                Credentials are encrypted using AES-256-GCM and stored locally on your device
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                For desktop (Tauri), credentials are stored in secure native storage
               </p>
             </div>
           </CardContent>

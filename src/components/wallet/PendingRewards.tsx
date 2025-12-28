@@ -3,25 +3,43 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Gift, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
+import { SecureStorageFactory } from '@/services/secureStorage';
+import { SteemAccount } from '@/services/steemApi';
 
 interface PendingRewardsProps {
-  account: any;
+  account: SteemAccount | null;
   onUpdate?: () => void;
 }
 
 const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
   const [isClaiming, setIsClaiming] = useState(false);
   const [rewardSteemPower, setRewardSteemPower] = useState(0);
+  const [username, setUsername] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // CRITICAL: Track transaction submission to prevent duplicate transactions
+  const claimSubmittedRef = useRef(false);
+
+  // Load username from secure storage - reload when account changes
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const user = await storage.getItem('steem_username');
+        setUsername(user);
+      } catch (error) {
+        console.error('Error loading user data from storage:', error);
+      }
+    };
+    loadData();
+  }, [account?.name]); // Re-run when account changes
 
   if (!account) return null;
-
-  const username = localStorage.getItem('steem_username');
   const rewardSteem = parseFloat(account.reward_steem_balance?.split(' ')[0] || '0');
   const rewardSbd = parseFloat(account.reward_sbd_balance?.split(' ')[0] || '0');
   const rewardVests = parseFloat(account.reward_vesting_balance?.split(' ')[0] || '0');
@@ -53,85 +71,48 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
   const handleClaimRewards = async () => {
     if (!username || !hasPendingRewards) return;
 
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // CRITICAL: Prevent duplicate submissions
+    if (claimSubmittedRef.current || isClaiming) {
+      console.log('Blocking duplicate claim rewards submission');
+      return;
+    }
+    
+    // CRITICAL: Mark as submitted IMMEDIATELY
+    claimSubmittedRef.current = true;
     setIsClaiming(true);
 
     try {
-      if (loginMethod === 'keychain') {
-        await handleKeychainClaim();
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyClaim();
-      }
-    } catch (error) {
-      console.error('Claim rewards error:', error);
-      toast({
-        title: "Operation Failed",
-        description: "Failed to claim rewards. Please try again.",
-        variant: "destructive",
-      });
-      setIsClaiming(false);
-    }
-  };
-
-  const handleKeychainClaim = async () => {
-    if (!window.steem_keychain) {
-      toast({
-        title: "Keychain Not Available",
-        description: "Steem Keychain not found",
-        variant: "destructive",
-      });
-      setIsClaiming(false);
-      return;
-    }
-
-    try {
-      const rewardSteemBalance = `${rewardSteem.toFixed(3)} STEEM`;
-      const rewardSbdBalance = `${rewardSbd.toFixed(3)} SBD`;
-      const rewardVestingBalance = `${rewardVests.toFixed(6)} VESTS`;
-
-      // Use Posting key for claim rewards (works for all key types)
-      window.steem_keychain.requestBroadcast(
-        username!,
-        [['claim_reward_balance', { 
-          account: username!, 
-          reward_steem: rewardSteemBalance,
-          reward_sbd: rewardSbdBalance,
-          reward_vests: rewardVestingBalance
-        }]],
-        'Posting',
-        (response: any) => {
-          if (response.success) {
-            toast({
-              title: "Rewards Claimed Successfully",
-              description: "Your pending rewards have been claimed and added to your wallet",
-            });
-            // Call onUpdate to refresh data without page reload
-            onUpdate?.();
-          } else {
-            toast({
-              title: "Operation Failed",
-              description: response.message || "Transaction was rejected",
-              variant: "destructive",
-            });
-          }
-          setIsClaiming(false);
-        }
-      );
+      await handlePrivateKeyClaim();
     } catch (error: any) {
-      toast({
-        title: "Operation Failed",
-        description: error.message || "Failed to claim rewards",
-        variant: "destructive",
-      });
+      console.error('Claim rewards error:', error);
+      
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Rewards Already Claimed",
+          description: "Your rewards were already claimed.",
+        });
+        onUpdate?.();
+      } else {
+        toast({
+          title: "Operation Failed",
+          description: "Failed to claim rewards. Please try again.",
+          variant: "destructive",
+        });
+        // Only reset ref on genuine errors to allow retry
+        claimSubmittedRef.current = false;
+      }
       setIsClaiming(false);
     }
   };
 
   const handlePrivateKeyClaim = async () => {
     // Try different keys in order: posting, active, owner
-    const postingKey = localStorage.getItem('steem_posting_key');
-    const activeKey = localStorage.getItem('steem_active_key');
-    const ownerKey = localStorage.getItem('steem_owner_key');
+    const storage = SecureStorageFactory.getInstance();
+    const postingKey = await storage.getItem('steem_posting_key');
+    const activeKey = await storage.getItem('steem_active_key');
+    const ownerKey = await storage.getItem('steem_owner_key');
 
     let privateKeyString = postingKey || activeKey || ownerKey;
     
@@ -141,6 +122,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         description: "Posting, Active, or Owner key required for this operation",
         variant: "destructive",
       });
+      claimSubmittedRef.current = false;
       setIsClaiming(false);
       return;
     }
@@ -167,7 +149,20 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
       // Call onUpdate to refresh data without page reload
       onUpdate?.();
       setIsClaiming(false);
+      // Keep claimSubmittedRef as true to prevent any accidental double submissions
     } catch (error: any) {
+      // Check for duplicate transaction - treat as SUCCESS
+      const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
+      if (isDuplicate) {
+        toast({
+          title: "Rewards Already Claimed",
+          description: "Your rewards were already claimed successfully.",
+        });
+        onUpdate?.();
+        setIsClaiming(false);
+        return;
+      }
+      
       let errorMessage = "Operation failed";
       if (error.jse_shortmsg) {
         errorMessage = error.jse_shortmsg;
@@ -180,6 +175,8 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         description: errorMessage,
         variant: "destructive",
       });
+      // CRITICAL: Reset ref so user can retry on genuine errors
+      claimSubmittedRef.current = false;
       setIsClaiming(false);
     }
   };
@@ -190,9 +187,9 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
   }
 
   return (
-    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
+    <div className="flex items-center justify-between bg-slate-800 border border-emerald-800 rounded-lg p-3">
       <div className="flex items-center gap-3">
-        <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
+        <Badge variant="secondary" className="bg-green-900/50 text-green-400 hover:bg-green-900/60">
           <Gift className="w-3 h-3 mr-1" />
           Pending Rewards
         </Badge>
@@ -200,19 +197,19 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         <div className="flex items-center gap-4 text-sm">
           {rewardSteem > 0 && (
             <div>
-              <span className="text-green-700 font-medium">{rewardSteem.toFixed(3)} STEEM</span>
+              <span className="text-green-400 font-medium">{rewardSteem.toFixed(3)} STEEM</span>
             </div>
           )}
           
           {rewardSbd > 0 && (
             <div>
-              <span className="text-green-700 font-medium">{rewardSbd.toFixed(3)} SBD</span>
+              <span className="text-green-400 font-medium">{rewardSbd.toFixed(3)} SBD</span>
             </div>
           )}
           
           {rewardVests > 0 && (
             <div>
-              <span className="text-green-700 font-medium">{rewardSteemPower.toFixed(3)} SP</span>
+              <span className="text-green-400 font-medium">{rewardSteemPower.toFixed(3)} SP</span>
             </div>
           )}
         </div>
@@ -222,7 +219,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         onClick={handleClaimRewards}
         variant="outline"
         size="sm"
-        className="border-green-300 text-green-700 hover:bg-green-50 text-xs"
+        className="border-emerald-600 text-emerald-400 hover:bg-emerald-950 text-xs"
         disabled={isClaiming}
       >
         {isClaiming ? (

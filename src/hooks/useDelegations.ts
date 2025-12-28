@@ -37,7 +37,7 @@ export const useDelegations = (username: string | null) => {
   } = useQuery({
     queryKey: ['outgoing-delegations', username],
     queryFn: async () => {
-      if (!username) return [];
+      if (!username || steemPerMvests <= 0) return [];
       const delegations = await steemApi.getVestingDelegations(username);
       return delegations
         .filter(d => parseFloat(d.vesting_shares.split(' ')[0]) > 0)
@@ -47,40 +47,15 @@ export const useDelegations = (username: string | null) => {
     staleTime: 30000, // Cache for 30 seconds
   });
 
-  // Fetch incoming delegations
-  const {
-    data: incomingDelegations = [],
-    isLoading: incomingLoading,
-    error: incomingError,
-    refetch: refetchIncoming
-  } = useQuery({
-    queryKey: ['incoming-delegations', username],
-    queryFn: async () => {
-      if (!username) return [];
-      const delegations = await steemApi.getIncomingDelegations(username);
-      return delegations.map(d => steemApi.formatDelegation(d, steemPerMvests));
-    },
-    enabled: !!username && steemPerMvests > 0,
-    staleTime: 30000, // Cache for 30 seconds
-  });
-
   // Calculate totals
   const totalDelegatedOut = outgoingDelegations.reduce((sum, d) => sum + parseFloat(d.steemPower), 0);
-  const totalDelegatedIn = incomingDelegations.reduce((sum, d) => sum + parseFloat(d.steemPower), 0);
-
-  const refetchAll = () => {
-    refetchOutgoing();
-    refetchIncoming();
-  };
 
   return {
     outgoingDelegations: outgoingDelegations as FormattedDelegation[],
-    incomingDelegations: incomingDelegations as FormattedDelegation[],
-    isLoading: outgoingLoading || incomingLoading,
-    error: outgoingError || incomingError,
+    isLoading: outgoingLoading,
+    error: outgoingError,
     totalDelegatedOut,
-    totalDelegatedIn,
     steemPerMvests,
-    refetchAll
+    refetchAll: refetchOutgoing
   };
 };

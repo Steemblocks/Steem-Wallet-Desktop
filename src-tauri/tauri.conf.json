@@ -1,0 +1,34 @@
+{
+  "productName": "Steem Wallet",
+  "version": "0.1.0",
+  "identifier": "com.steemwallet.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev:server",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Steem Wallet",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "alwaysOnTop": false,
+        "hiddenTitle": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc://; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://api.steemit.com https://api.steemitdev.com https://steemd.steemworld.org https://api.moecki.online https://api.coingecko.com http://ipc.localhost; img-src 'self' https:; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "app", "deb"],
+    "icon": ["../public/favicon.ico"]
+  }
+}

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, TrendingUp, PiggyBank, ArrowDown, Route, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
+import { SecureStorageFactory } from '@/services/secureStorage';
 import { OperationType } from './TransferPopup';
 
 interface TransferConfirmDialogProps {
@@ -33,9 +34,58 @@ const TransferConfirmDialog = ({
   onSuccess
 }: TransferConfirmDialogProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+  const [loginMethod, setLoginMethod] = useState<string | null>(null);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [transactionComplete, setTransactionComplete] = useState(false);
   const { toast } = useToast();
+  
+  // Ref to track if a transaction has been submitted for this dialog session
+  const transactionSubmittedRef = useRef(false);
+  // Unique transaction key to prevent duplicate submissions
+  const transactionKeyRef = useRef<string>('');
+  // Track previous open state to detect true open/close transitions
+  const wasOpenRef = useRef(false);
 
-  const username = localStorage.getItem('steem_username');
+  // Generate unique transaction key when dialog TRULY opens (from closed to open)
+  useEffect(() => {
+    const justOpened = isOpen && !wasOpenRef.current;
+    const justClosed = !isOpen && wasOpenRef.current;
+    
+    if (justOpened) {
+      // Dialog just opened - reset state for new transaction
+      transactionKeyRef.current = `${operationType}-${recipient}-${amount}-${currency}-${Date.now()}`;
+      transactionSubmittedRef.current = false;
+      setTransactionComplete(false);
+      setIsProcessing(false);
+    }
+    
+    if (justClosed) {
+      // Dialog just closed - reset for next time
+      transactionSubmittedRef.current = false;
+      setIsProcessing(false);
+    }
+    
+    wasOpenRef.current = isOpen;
+  }, [isOpen, operationType, recipient, amount, currency]);
+
+  // Load credentials from secure storage
+  useEffect(() => {
+    const loadCredentials = async () => {
+      try {
+        const storage = SecureStorageFactory.getInstance();
+        const user = await storage.getItem('steem_username');
+        const method = await storage.getItem('steem_login_method');
+        const key = await storage.getItem('steem_active_key');
+        setUsername(user);
+        setLoginMethod(method);
+        setActiveKey(key);
+      } catch (error) {
+        console.error('Error loading credentials from storage:', error);
+      }
+    };
+    loadCredentials();
+  }, [isOpen]);
 
   const getOperationIcon = (type: OperationType) => {
     switch (type) {
@@ -62,18 +112,22 @@ const TransferConfirmDialog = ({
   };
 
   const handleConfirm = async () => {
-    if (!username) return;
-
-    const loginMethod = localStorage.getItem('steem_login_method');
+    // Prevent duplicate submissions - check BOTH ref and state
+    if (!username || transactionSubmittedRef.current || isProcessing) {
+      console.log('Blocking duplicate submission:', { 
+        hasUsername: !!username, 
+        transactionSubmitted: transactionSubmittedRef.current, 
+        isProcessing 
+      });
+      return;
+    }
     
+    // CRITICAL: Mark as submitted IMMEDIATELY before any async work
+    transactionSubmittedRef.current = true;
     setIsProcessing(true);
 
     try {
-      if (loginMethod === 'keychain') {
-        await handleKeychainOperation();
-      } else if (loginMethod === 'privatekey' || loginMethod === 'masterpassword') {
-        await handlePrivateKeyOperation();
-      }
+      await handlePrivateKeyOperation();
     } catch (error) {
       console.error('Operation error:', error);
       toast({
@@ -82,130 +136,13 @@ const TransferConfirmDialog = ({
         variant: "destructive",
       });
       setIsProcessing(false);
-    }
-  };
-
-  const handleKeychainOperation = async () => {
-    if (!window.steem_keychain) {
-      toast({
-        title: "Keychain Not Available",
-        description: "Steem Keychain not found",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-      return;
-    }
-
-    try {
-      let operations: any[] = [];
-
-      switch (operationType) {
-        case 'transfer':
-          operations.push([
-            'transfer',
-            {
-              from: username!,
-              to: recipient,
-              amount: `${amount} ${currency}`,
-              memo: memo
-            }
-          ]);
-          break;
-
-        case 'powerup':
-          operations.push([
-            'transfer_to_vesting',
-            {
-              from: username!,
-              to: recipient || username!,
-              amount: `${amount} ${currency}`
-            }
-          ]);
-          break;
-
-        case 'powerdown':
-          const vestsAmount = await steemOperations.convertSteemToVests(`${amount} STEEM`);
-          operations.push([
-            'withdraw_vesting',
-            {
-              account: username!,
-              vesting_shares: vestsAmount
-            }
-          ]);
-          break;
-
-        case 'savings':
-          operations.push([
-            'transfer_to_savings',
-            {
-              from: username!,
-              to: recipient,
-              amount: `${amount} ${currency}`,
-              memo: memo
-            }
-          ]);
-          break;
-
-        case 'withdraw_savings':
-          operations.push([
-            'transfer_from_savings',
-            {
-              from: username!,
-              to: username!,
-              amount: `${amount} ${currency}`,
-              memo: memo,
-              request_id: Date.now()
-            }
-          ]);
-          break;
-
-        case 'withdraw_route':
-          operations.push([
-            'set_withdraw_vesting_route',
-            {
-              from_account: username!,
-              to_account: recipient,
-              percent: Math.round(parseFloat(percent) * 100), // Convert percentage to basis points
-              auto_vest: autoVest
-            }
-          ]);
-          break;
-      }
-
-      console.log('Sending operations to Keychain:', operations);
-
-      window.steem_keychain.requestBroadcast(
-        username!,
-        operations,
-        'Active',
-        (response: any) => {
-          console.log('Keychain response:', response);
-          
-          if (response.success) {
-            onSuccess();
-          } else {
-            toast({
-              title: "Operation Failed",
-              description: response.message || "Transaction was rejected",
-              variant: "destructive",
-            });
-          }
-          setIsProcessing(false);
-        }
-      );
-    } catch (error: any) {
-      console.error('Keychain operation error:', error);
-      toast({
-        title: "Operation Failed",
-        description: error.message || "Failed to process operation",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
+      // DO NOT reset transactionSubmittedRef here - the transaction may have been submitted
+      // User must close and reopen dialog to retry
     }
   };
 
   const handlePrivateKeyOperation = async () => {
-    const privateKeyString = localStorage.getItem('steem_active_key');
+    const privateKeyString = activeKey;
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
@@ -218,13 +155,16 @@ const TransferConfirmDialog = ({
 
     try {
       const privateKey = dsteem.PrivateKey.fromString(privateKeyString);
+      
+      // Format amount with exactly 3 decimal places
+      const formattedAmount = parseFloat(amount).toFixed(3);
 
       switch (operationType) {
         case 'transfer':
           const transferOp = {
             from: username!,
             to: recipient,
-            amount: `${amount} ${currency}`,
+            amount: `${formattedAmount} ${currency}`,
             memo: memo
           };
           console.log('Executing transfer:', transferOp);
@@ -235,14 +175,14 @@ const TransferConfirmDialog = ({
           const powerUpOp = {
             from: username!,
             to: recipient || username!,
-            amount: `${amount} ${currency}`
+            amount: `${formattedAmount} ${currency}`
           };
           console.log('Executing power up:', powerUpOp);
           await steemOperations.powerUp(powerUpOp, privateKey);
           break;
 
         case 'powerdown':
-          const vestsAmount = await steemOperations.convertSteemToVests(`${amount} STEEM`);
+          const vestsAmount = await steemOperations.convertSteemToVests(`${formattedAmount} STEEM`);
           console.log('Executing power down with vests:', vestsAmount);
           await steemOperations.powerDown(username!, vestsAmount, privateKey);
           break;
@@ -251,7 +191,7 @@ const TransferConfirmDialog = ({
           const savingsOp = {
             from: username!,
             to: recipient,
-            amount: `${amount} ${currency}`,
+            amount: `${formattedAmount} ${currency}`,
             memo: memo
           };
           console.log('Executing transfer to savings:', savingsOp);
@@ -262,7 +202,7 @@ const TransferConfirmDialog = ({
           const withdrawOp = {
             from: username!,
             to: username!,
-            amount: `${amount} ${currency}`,
+            amount: `${formattedAmount} ${currency}`,
             memo: memo,
             request_id: Date.now()
           };
@@ -282,31 +222,98 @@ const TransferConfirmDialog = ({
           break;
       }
       
+      toast({
+        title: "Transaction Confirmed",
+        description: `Your ${getOperationTitle(operationType)} transaction was successful!`,
+      });
+      
+      // Mark transaction as complete before closing
+      setTransactionComplete(true);
+      
+      // Close dialog first, then trigger success callback
+      onClose();
       onSuccess();
-      setIsProcessing(false);
       
     } catch (error: any) {
       console.error('Private key operation error:', error);
       
       let errorMessage = "Operation failed";
+      let isDuplicateError = false;
+      let isRetryableError = false;
+      
       if (error.jse_shortmsg) {
-        errorMessage = error.jse_shortmsg;
+        // Handle duplicate transaction error - this means transaction was ALREADY SUCCESSFUL
+        if (error.jse_shortmsg.includes('duplicate')) {
+          isDuplicateError = true;
+          errorMessage = "This transaction was already submitted successfully. Check your transaction history.";
+        } else if (error.jse_shortmsg.includes('get_savings_balance')) {
+          // Insufficient savings balance - user can retry with different amount
+          isRetryableError = true;
+          errorMessage = "Insufficient savings balance. Please check your savings balance and try again.";
+        } else if (error.jse_shortmsg.includes('get_balance')) {
+          // Insufficient balance - user can retry with different amount  
+          isRetryableError = true;
+          errorMessage = "Insufficient balance. Please check your balance and try again.";
+        } else {
+          errorMessage = error.jse_shortmsg;
+        }
       } else if (error.message) {
-        errorMessage = error.message;
+        if (error.message.includes('duplicate')) {
+          isDuplicateError = true;
+          errorMessage = "This transaction was already submitted successfully. Check your transaction history.";
+        } else if (error.message.includes('get_savings_balance')) {
+          isRetryableError = true;
+          errorMessage = "Insufficient savings balance. Please check your savings balance and try again.";
+        } else if (error.message.includes('get_balance')) {
+          isRetryableError = true;
+          errorMessage = "Insufficient balance. Please check your balance and try again.";
+        } else {
+          errorMessage = error.message;
+        }
       }
       
-      toast({
-        title: "Operation Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      setIsProcessing(false);
+      // If it's a duplicate error, the transaction actually succeeded
+      // So we should treat it as success and close the dialog
+      if (isDuplicateError) {
+        toast({
+          title: "Transaction Already Processed",
+          description: errorMessage,
+          variant: "default",
+        });
+        setTransactionComplete(true);
+        onClose();
+        onSuccess();
+      } else {
+        toast({
+          title: "Operation Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        // For retryable errors (like insufficient balance), allow user to close and fix the issue
+        // For non-retryable errors, keep the ref to prevent accidental retries
+        if (isRetryableError) {
+          transactionSubmittedRef.current = false;
+        }
+      }
+    }
+  };
+
+  // Handle dialog close - prevent closing while processing
+  const handleOpenChange = (open: boolean) => {
+    // Don't allow closing if we're processing or if transaction was submitted
+    if (!open && (isProcessing || transactionSubmittedRef.current)) {
+      console.log('Preventing dialog close during transaction');
+      return;
+    }
+    if (!open) {
+      onClose();
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-white max-w-md" hideCloseButton>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="bg-slate-900 max-w-md border border-slate-700" hideCloseButton>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2" style={{ color: '#07d7a9' }}>
             {getOperationIcon(operationType)}
@@ -318,17 +325,17 @@ const TransferConfirmDialog = ({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+          <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-600">Operation:</span>
-                <span className="font-medium text-gray-800">{getOperationTitle(operationType)}</span>
+                <span className="text-slate-400">Operation:</span>
+                <span className="font-medium text-white">{getOperationTitle(operationType)}</span>
               </div>
               
               {operationType !== 'withdraw_route' && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Amount:</span>
-                  <span className="font-medium text-gray-800">
+                  <span className="text-slate-400">Amount:</span>
+                  <span className="font-medium text-white">
                     {amount} {operationType === 'powerdown' ? 'SP' : currency}
                   </span>
                 </div>
@@ -337,30 +344,30 @@ const TransferConfirmDialog = ({
               {operationType === 'withdraw_route' && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Percentage:</span>
-                    <span className="font-medium text-gray-800">{percent}%</span>
+                    <span className="text-slate-400">Percentage:</span>
+                    <span className="font-medium text-white">{percent}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Auto Vest:</span>
-                    <span className="font-medium text-gray-800">{autoVest ? 'Yes' : 'No'}</span>
+                    <span className="text-slate-400">Auto Vest:</span>
+                    <span className="font-medium text-white">{autoVest ? 'Yes' : 'No'}</span>
                   </div>
                 </>
               )}
               
               {recipient && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">
+                  <span className="text-slate-400">
                     {operationType === 'powerup' ? 'Power Up To:' : 
                      operationType === 'withdraw_route' ? 'Route To:' : 'To:'}
                   </span>
-                  <span className="font-medium text-gray-800">@{recipient}</span>
+                  <span className="font-medium text-white">@{recipient}</span>
                 </div>
               )}
               
               {memo && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Memo:</span>
-                  <span className="font-medium text-gray-800 break-all">{memo}</span>
+                  <span className="text-slate-400">Memo:</span>
+                  <span className="font-medium text-white break-all">{memo}</span>
                 </div>
               )}
             </div>

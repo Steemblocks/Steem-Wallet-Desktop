@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { steemApi, SteemAccount } from '@/services/steemApi';
-import { priceApi } from '@/services/priceApi';
+import { priceApi, MarketPriceData } from '@/services/priceApi';
 import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
 
 export interface WalletData {
@@ -21,6 +21,9 @@ export interface WalletData {
   usdValue: string;
   steemPrice: number;
   sbdPrice: number;
+  // New market data fields
+  steemMarketData: MarketPriceData;
+  sbdMarketData: MarketPriceData;
 }
 
 export const useSteemAccount = (username: string) => {
@@ -42,11 +45,23 @@ export const formatWalletData = async (account: SteemAccount): Promise<WalletDat
   const receivedVests = steemApi.parseAmount(account.received_vesting_shares);
   const vestingShares = steemApi.parseAmount(account.vesting_shares);
   
+  // Default market data for fallback
+  const defaultMarketData: MarketPriceData = {
+    price: 0,
+    priceChange24h: 0,
+    marketCap: 0,
+    volume24h: 0,
+    high24h: 0,
+    low24h: 0,
+    image: '',
+    lastUpdated: new Date().toISOString()
+  };
+
   try {
-    // Get current STEEM per Mvests conversion rate and USD prices
-    const [steemPerMvests, prices] = await Promise.all([
+    // Get current STEEM per Mvests conversion rate and market data
+    const [steemPerMvests, marketData] = await Promise.all([
       getSteemPerMvests(),
-      priceApi.getCurrentPrices()
+      priceApi.getMarketData()
     ]);
     
     // Convert Vests to STEEM Power using the utility functions
@@ -55,11 +70,27 @@ export const formatWalletData = async (account: SteemAccount): Promise<WalletDat
     const receivedSP = vestsToSteem(receivedVests, steemPerMvests);
     
     const reputation = steemApi.formatReputation(account.reputation);
-    const votingPower = account.voting_power / 100; // Convert from basis points to percentage
+    
+    // Calculate accurate voting power from manabar if available, otherwise use deprecated field
+    let votingPower = account.voting_power / 100; // Fallback to deprecated field
+    
+    // If voting_manabar is available, calculate accurate VP
+    if (account.voting_manabar) {
+      const effectiveVests = vestingShares + receivedVests - delegatedVests;
+      const maxVotingMana = effectiveVests * 1e6;
+      const now = Date.now();
+      const lastUpdateTime = (account.voting_manabar.last_update_time || 0) * 1000;
+      const secondsSinceUpdate = Math.max(0, (now - lastUpdateTime) / 1000);
+      const storedMana = parseFloat(account.voting_manabar.current_mana || '0');
+      const regenRate = maxVotingMana / 432000; // 5 days full regen
+      const regeneratedMana = regenRate * secondsSinceUpdate;
+      const currentMana = Math.min(storedMana + regeneratedMana, maxVotingMana);
+      votingPower = maxVotingMana > 0 ? (currentMana / maxVotingMana) * 100 : 0;
+    }
     
     // Calculate USD values
-    const steemValueUsd = (steem + steemPower + savingsSteem) * prices.steemPrice;
-    const sbdValueUsd = (sbd + savingsSbd) * prices.sbdPrice;
+    const steemValueUsd = (steem + steemPower + savingsSteem) * marketData.steem.price;
+    const sbdValueUsd = (sbd + savingsSbd) * marketData.sbd.price;
     const totalUsdValue = steemValueUsd + sbdValueUsd;
     
     // Simple account value calculation (STEEM + SBD + STEEM Power)
@@ -80,8 +111,10 @@ export const formatWalletData = async (account: SteemAccount): Promise<WalletDat
       resourceCredits: 85, // Placeholder - would need separate API call
       accountValue: accountValue.toFixed(2),
       usdValue: totalUsdValue.toFixed(2),
-      steemPrice: prices.steemPrice,
-      sbdPrice: prices.sbdPrice,
+      steemPrice: marketData.steem.price,
+      sbdPrice: marketData.sbd.price,
+      steemMarketData: marketData.steem,
+      sbdMarketData: marketData.sbd,
     };
   } catch (error) {
     console.error('Error converting Vests to STEEM Power or fetching prices:', error);
@@ -92,7 +125,21 @@ export const formatWalletData = async (account: SteemAccount): Promise<WalletDat
     const receivedSP = receivedVests / 1000000;
     
     const reputation = steemApi.formatReputation(account.reputation);
-    const votingPower = account.voting_power / 100;
+    
+    // Calculate accurate voting power from manabar if available
+    let votingPower = account.voting_power / 100; // Fallback to deprecated field
+    if (account.voting_manabar) {
+      const effectiveVests = vestingShares + receivedVests - delegatedVests;
+      const maxVotingMana = effectiveVests * 1e6;
+      const now = Date.now();
+      const lastUpdateTime = (account.voting_manabar.last_update_time || 0) * 1000;
+      const secondsSinceUpdate = Math.max(0, (now - lastUpdateTime) / 1000);
+      const storedMana = parseFloat(account.voting_manabar.current_mana || '0');
+      const regenRate = maxVotingMana / 432000;
+      const regeneratedMana = regenRate * secondsSinceUpdate;
+      const currentMana = Math.min(storedMana + regeneratedMana, maxVotingMana);
+      votingPower = maxVotingMana > 0 ? (currentMana / maxVotingMana) * 100 : 0;
+    }
     const accountValue = steem + sbd + steemPower + savingsSteem + savingsSbd;
     
     // Fallback USD calculation with default prices
@@ -115,6 +162,8 @@ export const formatWalletData = async (account: SteemAccount): Promise<WalletDat
       usdValue: totalUsdValue.toFixed(2),
       steemPrice: 0.25,
       sbdPrice: 1.0,
+      steemMarketData: { ...defaultMarketData, price: 0.25 },
+      sbdMarketData: { ...defaultMarketData, price: 1.0 },
     };
   }
 };
