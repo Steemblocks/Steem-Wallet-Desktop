@@ -1,601 +1,339 @@
-# 🪙 SteemWallet - Secure Blockchain Wallet
+# Steem Wallet Desktop
 
-A **cross-platform**, **production-ready** Steem blockchain wallet with military-grade encryption and zero-knowledge architecture.
+A secure, cross-platform desktop wallet for the Steem blockchain built with Tauri, React, and Rust.
 
-> 🔐 **Military-Grade Security**: Private keys never leave your device. Encrypted with AES-256-GCM and Argon2id hashing.
+## Overview
 
----
+Steem Wallet Desktop is an open-source cryptocurrency wallet designed for managing STEEM tokens securely. The application uses a zero-knowledge architecture where private keys are encrypted and never leave your device.
 
-## 📊 What is SteemWallet?
+### Supported Platforms
 
-SteemWallet is a secure, open-source cryptocurrency wallet for the Steem blockchain. Manage STEEM tokens, perform transactions, and interact with the blockchain with complete confidence.
+| Platform | Format |
+|----------|--------|
+| Windows | `.msi` / `.exe` installer |
+| macOS | `.dmg` / `.app` bundle |
+| Linux | `.deb` package |
 
-### 🎯 Available On
+## Features
 
-| Platform | Status | Format |
-|----------|--------|--------|
-| 🪟 **Windows** | ✅ Ready | `.msi` / `.exe` installer |
-| 🍎 **macOS** | ✅ Ready | `.dmg` / `.app` bundle |
-| 🐧 **Linux** | ✅ Ready | `.deb` package |
-| 🌐 **Web** | ✅ Works | Browser-based (fallback) |
+### Wallet Operations
+- STEEM and SBD token transfers
+- Power up and power down operations
+- Delegation management
+- Witness voting
+- Account history and transaction tracking
+- Real-time balance and market data
 
----
-
-## ✨ Key Features
-
-### 🔐 Security
-- ✅ **AES-256-GCM encryption** (NIST-approved)
-- ✅ **Argon2id key derivation** (OWASP-recommended)
-- ✅ **Zero-knowledge architecture** - Private keys never leave your device
-- ✅ **IPC boundary protection** - Backend isolated from frontend attacks
-- ✅ **Cryptographically secure randomness**
-
-### 💰 Functionality
-- 💸 Fast STEEM token transfers
-- 🔗 Direct blockchain interaction
-- 📊 Real-time balance tracking
-- 💼 Delegation management
-- 🏛️ Governance operations
-- 📈 Market data & price tracking
-
-### 🎨 User Experience
-- 📱 Fully responsive design
-- 🌙 Dark mode & light mode
-- ⚡ Modern, intuitive UI
-- 🔄 Hot reload during development
-- ♿ Accessible components (WCAG)
+### User Interface
+- Responsive design for various screen sizes
+- Dark and light theme support
+- Accessible components following WCAG guidelines
 
 ---
 
-## 🚀 Quick Start
+## Security Architecture
+
+Steem Wallet Desktop implements a layered security model with strict separation between the user interface and cryptographic operations.
+
+### Overview
+
+```
++-------------------------------------+
+|  React UI (Frontend)                |
+|  - User interface rendering         |
+|  - No access to private keys        |
+|  - Communicates via IPC only        |
++----------------+--------------------+
+                 |
+                 | IPC Bridge (Type-safe)
+                 |
++----------------v--------------------+
+|  Tauri Core (OS Boundary)           |
++----------------+--------------------+
+                 |
++----------------v--------------------+
+|  Rust Backend (Secure Environment)  |
+|                                     |
+|  crypto.rs                          |
+|  - AES-256-GCM encryption           |
+|  - Argon2id key derivation          |
+|  - Cryptographically secure RNG     |
+|                                     |
+|  storage.rs                         |
+|  - Encrypted key storage            |
+|  - Session management               |
++-------------------------------------+
+```
+
+### Encryption Details
+
+**Algorithm: AES-256-GCM**
+- NIST-approved authenticated encryption
+- 256-bit key length
+- Galois/Counter Mode provides both confidentiality and integrity
+- Each encryption operation uses a unique 96-bit nonce
+
+**Key Derivation: Argon2id**
+- OWASP-recommended password hashing algorithm
+- Resistant to GPU and ASIC attacks
+- Parameters: 19456 KB memory, 2 iterations, 1 parallelism
+- Produces 32-byte derived keys
+
+### IPC Boundary Protection
+
+The Inter-Process Communication (IPC) boundary ensures that:
+- The frontend JavaScript environment cannot directly access private keys
+- All cryptographic operations execute in the Rust backend
+- Type-safe command interfaces prevent arbitrary code execution
+- Even if the frontend is compromised (XSS), private keys remain protected
+
+---
+
+## Local Storage
+
+### How Data is Stored
+
+Steem Wallet Desktop uses a secure storage system implemented in Rust that differs significantly from browser-based localStorage.
+
+**Desktop Application (Tauri)**
+- Private keys are encrypted using AES-256-GCM before storage
+- The encryption key is derived from the user's password using Argon2id
+- Encrypted data is stored in the application's data directory
+- Storage location varies by OS:
+  - Windows: `%APPDATA%\com.steemwallet.desktop\`
+  - macOS: `~/Library/Application Support/com.steemwallet.desktop/`
+  - Linux: `~/.local/share/com.steemwallet.desktop/`
+
+**Storage Flow**
+```
+User Password
+     |
+     v
+Argon2id Key Derivation (salt + password)
+     |
+     v
+256-bit Encryption Key
+     |
+     v
+AES-256-GCM Encryption
+     |
+     v
+Encrypted Data -> Application Data Directory
+```
+
+### What is Stored
+
+| Data Type | Storage Method | Encryption |
+|-----------|---------------|------------|
+| Private Keys | Encrypted in app data | AES-256-GCM |
+| Account Username | Plain text | No |
+| App Settings | Plain text | No |
+| Session Data | Memory only | Cleared on exit |
+
+### Session Management
+
+- Sensitive data is held in memory during active sessions
+- Session data is cleared when the application closes
+- Auto-lock feature clears session after configurable inactivity period
+- Password re-entry required to decrypt keys after lock
+
+---
+
+## Installation
 
 ### Prerequisites
-- **Node.js** v18+ ([Download](https://nodejs.org/))
-- **Rust** (for desktop builds)
-- **npm** or **yarn**
+- Node.js v20 or later
+- Rust (for building from source)
+- npm or yarn
 
-### Installation (30 seconds)
+### Download Releases
+
+Download pre-built installers from the [Releases](https://github.com/Steemblocks/Steem-Wallet-Desktop/releases) page.
+
+### Build from Source
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/blazeapps007/steemWallet.git
-cd steemWallet
+# Clone repository
+git clone https://github.com/Steemblocks/Steem-Wallet-Desktop.git
+cd Steem-Wallet-Desktop
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Run development server
-npm run tauri:dev    # Desktop app with hot reload
-# OR
-npm run dev          # Web version only
-```
+# Run development version
+npm run tauri:dev
 
-**That's it!** A desktop window will open automatically.
-
----
-
-## 💻 Available Commands
-
-### Desktop Development
-```bash
-npm run tauri:dev         # Start desktop app (with hot reload)
-npm run tauri:build       # Build production app
-npm run tauri:build --debug  # Build debug version
-```
-
-### Web Development
-```bash
-npm run dev               # Vite development server
-npm run build            # Production web build
-npm run preview          # Preview production build
-```
-
-### Quality & Maintenance
-```bash
-npm run lint             # Run ESLint
-npm run build:dev        # Development build
+# Build production installer
+npm run tauri:build
 ```
 
 ---
 
-## 🏗️ Architecture
+## Development
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run tauri:dev` | Start desktop app with hot reload |
+| `npm run tauri:build` | Build production installer |
+| `npm run dev` | Start Vite development server only |
+| `npm run build` | Build frontend for production |
+| `npm run lint` | Run ESLint |
+
+### Project Structure
+
+```
+Steem-Wallet-Desktop/
+├── src/                      # React frontend
+│   ├── components/
+│   │   ├── ui/               # Reusable UI components
+│   │   ├── wallet/           # Wallet-specific components
+│   │   └── layout/           # Layout components
+│   ├── services/
+│   │   ├── secureStorage.ts  # Storage abstraction layer
+│   │   ├── steemApi.ts       # Blockchain API client
+│   │   └── steemOperations.ts
+│   ├── hooks/                # React hooks
+│   └── contexts/             # React contexts
+│
+├── src-tauri/                # Rust backend
+│   ├── src/
+│   │   ├── crypto.rs         # Encryption implementation
+│   │   ├── storage.rs        # Secure storage manager
+│   │   ├── commands.rs       # IPC command handlers
+│   │   ├── lib.rs
+│   │   └── main.rs
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+│
+├── package.json
+├── vite.config.ts
+└── tailwind.config.ts
+```
 
 ### Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Frontend** | React 18 + TypeScript | Modern UI components |
-| **Styling** | Tailwind CSS + shadcn/ui | Beautiful, responsive design |
-| **Build** | Vite | Lightning-fast builds |
-| **Desktop** | Tauri 2 | Native desktop app |
-| **Backend** | Rust | Secure cryptography |
-| **Blockchain** | dsteem | Steem API client |
-
-### Security Architecture
-
-```
-┌─────────────────────────────────────┐
-│  React UI (Untrusted Environment)   │
-│  - Can be compromised by XSS        │
-│  - Cannot access private keys       │
-└────────────────┬────────────────────┘
-                 │ IPC Bridge
-                 │ (Type-safe)
-         ┌───────▼────────┐
-         │   Tauri Core   │
-         │  (OS Boundary) │
-         └────────┬───────┘
-                  │
-    ┌─────────────▼────────────┐
-    │   Rust Backend (Secure)  │
-    │  ┌──────────────────────┐│
-    │  │ crypto.rs            ││
-    │  │ • AES-256-GCM        ││
-    │  │ • Argon2id           ││
-    │  │ • Random generation  ││
-    │  └──────────────────────┘│
-    │  ┌──────────────────────┐│
-    │  │ storage.rs           ││
-    │  │ • Encrypted storage  ││
-    │  │ • Key management     ││
-    │  └──────────────────────┘│
-    └──────────────────────────┘
-           ↓
-    ✅ Private Keys (Never exposed)
-    ✅ Encrypted at rest
-    ✅ Protected by IPC boundary
-```
+| Component | Technology |
+|-----------|------------|
+| Frontend | React 18, TypeScript |
+| Styling | Tailwind CSS, shadcn/ui |
+| Build Tool | Vite |
+| Desktop Runtime | Tauri 2 |
+| Backend | Rust |
+| Blockchain Client | dsteem |
 
 ---
 
-## 🔒 Security Comparison
+## Security Considerations
 
-| Feature | Web Version | Tauri Desktop |
-|---------|-------------|---------------|
-| Private Key Storage | ❌ localStorage | ✅ Encrypted (Rust) |
-| Encryption | ❌ None | ✅ AES-256-GCM |
-| Key Derivation | ❌ None | ✅ Argon2id |
-| XSS Protection | ❌ Vulnerable | ✅ IPC Boundary |
-| Compilation | ❌ N/A | ✅ AOT + Type-safe |
-| Local Storage | ❌ Persistent | ✅ Session-based |
+### Best Practices for Users
 
----
+1. **Use a strong, unique password** - The security of your encrypted keys depends on password strength
+2. **Keep your password safe** - There is no password recovery; losing your password means losing access to stored keys
+3. **Verify downloads** - Only download releases from official sources
+4. **Keep the application updated** - Updates may include security patches
 
-## 📁 Project Structure
+### Security Model Limitations
 
-```
-steemWallet/
-├── src/
-│   ├── components/
-│   │   ├── ui/           # shadcn UI components
-│   │   ├── wallet/       # Wallet-specific components
-│   │   │   ├── LoginDialog-Tauri.tsx
-│   │   │   ├── TransferOperations.tsx
-│   │   │   └── ...
-│   │   └── layout/
-│   ├── services/
-│   │   ├── secureStorage.ts      # Platform abstraction
-│   │   ├── steemApi.ts           # Steem blockchain API
-│   │   ├── priceApi.ts           # Price data
-│   │   └── ...
-│   ├── hooks/
-│   │   ├── useSteemAccount.ts    # Account hook
-│   │   ├── useMarketData.ts      # Price hook
-│   │   └── ...
-│   ├── App.tsx
-│   └── main.tsx
-│
-├── src-tauri/
-│   ├── src/
-│   │   ├── crypto.rs        # AES-256-GCM encryption
-│   │   ├── storage.rs       # Secure storage manager
-│   │   ├── commands.rs      # Tauri public API
-│   │   ├── lib.rs
-│   │   └── main.rs
-│   ├── Cargo.toml           # Rust dependencies
-│   ├── tauri.conf.json      # App configuration
-│   └── icons/               # App icons (all platforms)
-│
-├── public/
-│   └── robots.txt
-│
-├── README.md               # This file
-├── TAURI_QUICK_START.md    # Quick reference
-├── TAURI_SETUP.md          # Detailed setup guide
-├── SECURITY_AUDIT.md       # Security findings
-├── START_HERE.md           # Project overview
-│
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── tailwind.config.ts
-└── eslint.config.js
-```
+- The application trusts the operating system's security
+- If your device is compromised at the OS level, encrypted data may be at risk
+- The application does not protect against keyloggers or screen capture malware
+- Physical access to an unlocked device may expose data
+
+### Reporting Security Issues
+
+If you discover a security vulnerability, please report it responsibly by opening a private issue or contacting the maintainers directly.
 
 ---
 
-## 🛠️ Development
+## Building Installers
 
-### Setting Up Development Environment
-
-#### Windows
-```powershell
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install WebView2 runtime
-# https://developer.microsoft.com/en-us/microsoft-edge/webview2/
-
-# Clone and setup
-git clone https://github.com/blazeapps007/steemWallet.git
-cd steemWallet
-npm install
-npm run tauri:dev
-```
-
-#### macOS/Linux
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Clone and setup
-git clone https://github.com/blazeapps007/steemWallet.git
-cd steemWallet
-npm install
-npm run tauri:dev
-```
-
-### Development Workflow
-
-1. **Start dev server**
-   ```bash
-   npm run tauri:dev
-   ```
-
-2. **Hot reload enabled**
-   - Save TypeScript/React files → Auto-reload in app
-   - Rust changes require restart
-
-3. **Debug with DevTools**
-   - Press `Ctrl+Shift+I` in app window
-   - Inspect elements, run console commands
-   - Works exactly like browser DevTools
-
-4. **Build for production**
-   ```bash
-   npm run tauri:build
-   # Output: src-tauri/target/release/
-   ```
-
----
-
-## 🔐 Security Features in Detail
-
-### 1. Private Key Management
-```typescript
-// ✅ Secure: Encrypted and stays in Rust
-const storage = SecureStorageFactory.getInstance();
-await storage.setEncryptedKey('active', username, encryptedKey, password);
-// Key is: Encrypted + Stored in OS security → Never exposed to JS
-```
-
-### 2. Password Hashing
-```rust
-// ✅ Argon2id (OWASP-recommended)
-let argon2 = Argon2::new(
-    Algorithm::Argon2id,
-    Version::V0x13,
-    Params::new(19456, 2, 1, Some(32))
-);
-let hash = argon2.hash_password(password.as_bytes(), &salt);
-```
-
-### 3. Encryption
-```rust
-// ✅ AES-256-GCM (NIST-approved)
-let cipher = Aes256Gcm::new(&key.into());
-let ciphertext = cipher.encrypt(nonce, Payload { msg: data, aad: b"" })?;
-```
-
-### 4. IPC Boundary Protection
-- Frontend cannot directly access private keys
-- All operations go through type-safe Rust commands
-- No arbitrary code execution possible
-
----
-
-## 📦 Building Installers
-
-### Windows Installer
+### Windows
 ```bash
 npm run tauri:build
-
-# Output:
-# - src-tauri/target/release/Steem Wallet.msi (Modern Installer)
-# - src-tauri/target/release/Steem Wallet.exe (NSIS)
+# Output: src-tauri/target/release/bundle/msi/
+# Output: src-tauri/target/release/bundle/nsis/
 ```
 
-### macOS Installer
+### macOS
 ```bash
-# Run on macOS
 npm run tauri:build
-
-# Output:
-# - src-tauri/target/release/Steem Wallet.dmg (Disk Image)
-# - src-tauri/target/release/Steem Wallet.app (Application)
+# Output: src-tauri/target/release/bundle/dmg/
+# Output: src-tauri/target/release/bundle/macos/
 ```
 
-### Linux Package
+### Linux
 ```bash
-# Run on Linux
 npm run tauri:build
-
-# Output:
-# - src-tauri/target/release/steem-wallet_*.deb (Debian Package)
-```
-
-### Cross-Platform CI/CD (Recommended)
-Use GitHub Actions to build all platforms automatically:
-
-```yaml
-# .github/workflows/build.yml
-on: [push, pull_request]
-
-jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-      - run: npm install && npm run tauri:build
-      - uses: actions/upload-artifact@v3
-        with:
-          path: src-tauri/target/release/
+# Output: src-tauri/target/release/bundle/deb/
 ```
 
 ---
 
-## 🧪 Testing
+## Contributing
 
-### Unit Tests
-```bash
-npm run test
-```
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -m 'Add your feature'`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Open a Pull Request
 
-### Security Testing
-```bash
-# Check for known vulnerabilities
-npm audit
-
-# ESLint code quality
-npm run lint
-```
-
-### Manual Testing
-
-1. **Test Desktop App**
-   ```bash
-   npm run tauri:dev
-   - Open app
-   - Try login with Steem Keychain
-   - Perform transfers
-   - Check DevTools (Ctrl+Shift+I)
-   ```
-
-2. **Test Web Version**
-   ```bash
-   npm run dev
-   # Opens on http://localhost:5173
-   ```
-
-3. **Test Builds**
-   ```bash
-   npm run preview
-   # Preview production build locally
-   ```
-
----
-
-## 🚀 Deployment
-
-### Deploy Web Version
-
-#### Vercel (Recommended)
-```bash
-npm install -g vercel
-vercel
-```
-
-#### Netlify
-```bash
-npm run build
-# Drag & drop dist/ folder to Netlify
-```
-
-#### AWS Amplify / Firebase
-See official documentation for your platform.
-
-### Distribute Desktop App
-
-1. **Build locally or with CI/CD**
-   ```bash
-   npm run tauri:build
-   ```
-
-2. **Sign builds** (optional but recommended)
-   - See Tauri docs for code signing
-
-3. **Host installers**
-   - GitHub Releases
-   - Your website
-   - App stores (Windows Store, App Store)
-
-4. **Enable auto-updates** (optional)
-   - Tauri has built-in updater support
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how:
-
-1. **Fork** the repository
-2. **Create** a feature branch
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. **Commit** your changes
-   ```bash
-   git commit -m 'Add amazing feature'
-   ```
-4. **Push** to your fork
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-5. **Open** a Pull Request
-
-### Development Guidelines
+### Guidelines
 - Follow existing code style
-- Test your changes locally
-- Update documentation
-- Add tests for new features
-- Ensure ESLint passes: `npm run lint`
+- Test changes locally before submitting
+- Update documentation for new features
+- Ensure `npm run lint` passes
 
 ---
 
-## 📚 Documentation
+## License
 
-| Document | Purpose | Read Time |
-|----------|---------|-----------|
-| **README.md** | Overview & quick start | 5 min |
-| **START_HERE.md** | Project structure | 5 min |
-| **TAURI_QUICK_START.md** | Desktop setup | 5 min |
-| **TAURI_SETUP.md** | Detailed technical guide | 30 min |
-| **SECURITY_AUDIT.md** | Security findings & fixes | 15 min |
+This project is licensed under a Custom Non-Commercial License. See [LICENSE.txt](./LICENSE.txt) for details.
 
----
+**Permitted:**
+- Personal use
+- Educational use
+- Non-commercial modifications and distribution
 
-## 🔗 Important Links
+**Not Permitted:**
+- Commercial use
+- Resale or relicensing
+- Use in paid products or services
 
-- **GitHub**: https://github.com/blazeapps007/steemWallet
-- **Steem Blockchain**: https://steem.com
-- **Tauri**: https://tauri.app/
-- **React**: https://react.dev
-- **Tailwind CSS**: https://tailwindcss.com
+For commercial licensing inquiries, contact the maintainers.
 
 ---
 
-## 📄 License
-
-**Custom Non-Commercial License (SteemWallet Non-Commercial License - SW-NCL)**
-
-### ✅ You Can
-- Use for personal projects
-- Use for educational purposes
-- Modify for non-commercial purposes
-- Distribute non-commercially
-
-### ❌ You Cannot
-- Use commercially
-- Receive funding for this code
-- Resell or relicense
-- Use in paid products/services
-
-**For commercial use**: Contact blazeapps007 on Steem or open an issue.
-
-Full license text in [LICENSE.txt](./LICENSE.txt)
-
----
-
-## 🆘 Support
-
-### Get Help
-- **Documentation**: Check [TAURI_SETUP.md](./TAURI_SETUP.md) first
-- **Issues**: Open a [GitHub Issue](https://github.com/blazeapps007/steemWallet/issues)
-- **Security**: Report vulnerabilities responsibly
+## Support
 
 ### Common Issues
 
-**Q: App won't start**
-- Install Rust: https://rustup.rs/
-- Install WebView2 (Windows): https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+**Application fails to start**
+- Ensure Rust is installed: https://rustup.rs/
+- Windows users: Install WebView2 runtime
 
-**Q: Hot reload not working**
-- Restart `npm run tauri:dev`
-- Check file has no syntax errors
+**Build fails**
+- Run `npm install` to ensure dependencies are installed
+- Clear build cache: `rm -rf src-tauri/target`
+- Verify Node.js version is 20 or later
 
-**Q: Build fails**
-- Run `npm install` again
-- Clear `src-tauri/target`: `rm -rf src-tauri/target`
-- Run `npm run tauri:build` again
+**Private keys not saving**
+- Confirm you are using the desktop application, not a web browser
+- Verify the password is entered correctly
 
-**Q: Private key not saving**
-- Check you're using Tauri version (not web)
-- Verify password is entered correctly
-
----
-
-## 🎯 Roadmap
-
-### ✅ Completed
-- [x] Rust crypto backend
-- [x] AES-256-GCM encryption
-- [x] Argon2id key derivation
-- [x] Tauri integration
-- [x] Cross-platform builds
-- [x] Security audit
-
-### 🔄 In Progress
-- [ ] Transaction signing in Rust
-- [ ] Hardware wallet support
-- [ ] 2FA support
-- [ ] Auto-update system
-
-### ⏳ Planned
-- [ ] Mobile app (React Native)
-- [ ] Browser extension
-- [ ] Ledger integration
-- [ ] Multi-signature accounts
+### Getting Help
+- Check existing [Issues](https://github.com/Steemblocks/Steem-Wallet-Desktop/issues)
+- Open a new issue with detailed information about the problem
 
 ---
 
-## 📊 Stats
+## Links
 
-- **Languages**: TypeScript, Rust, CSS
-- **Components**: 50+
-- **Lines of Code**: 15,000+
-- **Platforms**: Windows, macOS, Linux, Web
-- **Security**: Enterprise-grade
-- **License**: Non-commercial
+- Repository: https://github.com/Steemblocks/Steem-Wallet-Desktop
+- Steem Blockchain: https://steem.com
+- Tauri Framework: https://tauri.app
 
 ---
 
-## 🙏 Acknowledgments
-
-- **Tauri**: For amazing cross-platform framework
-- **Steem Blockchain**: For the blockchain
-- **React**: For UI library
-- **Rust**: For memory safety
-- **Community**: For feedback and contributions
-
----
-
-## 📝 Changelog
-
-See [releases](https://github.com/blazeapps007/steemWallet/releases) for detailed changelog.
-
-### Latest (v0.1.0)
-- ✨ Initial Tauri integration
-- 🔐 Secure crypto backend
-- 🚀 Cross-platform support
-- 📦 Production-ready builds
-
----
-
-**Built with ❤️ by the SteemWallet Community**
-
-*Last Updated: December 1, 2025*
-*Status: Production Ready ✅*
+Version: 0.1.0
