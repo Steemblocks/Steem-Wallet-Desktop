@@ -36,10 +36,14 @@ import {
   Shuffle,
   Trash2,
   Clock,
+  Wifi,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SecureStorageFactory } from "@/services/secureStorage";
 import { refreshClient } from "@/services/steemOperations";
+import { steemWebSocket } from "@/services/steemWebSocket";
 import {
   STEEM_NODES,
   SteemNode,
@@ -99,7 +103,29 @@ const AppSettingsOperations = ({
   const [customNodeName, setCustomNodeName] = useState<string>("");
   const [customNodesList, setCustomNodesList] = useState<CustomNode[]>([]);
   const [isCustomNodeSelected, setIsCustomNodeSelected] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnecting, setWsReconnecting] = useState(false);
   const { toast } = useToast();
+
+  // WebSocket connection status monitoring
+  useEffect(() => {
+    // Check initial state
+    setWsConnected(steemWebSocket.isConnected());
+
+    const unsubConnect = steemWebSocket.onConnect(() => {
+      setWsConnected(true);
+      setWsReconnecting(false);
+    });
+
+    const unsubDisconnect = steemWebSocket.onDisconnect(() => {
+      setWsConnected(false);
+    });
+
+    return () => {
+      unsubConnect();
+      unsubDisconnect();
+    };
+  }, []);
 
   // Load settings and selected node from storage on mount
   useEffect(() => {
@@ -316,11 +342,8 @@ const AppSettingsOperations = ({
         signal: AbortSignal.timeout(10000),
       });
 
-      console.log("Response status:", response.status, response.statusText);
-
       if (response.ok) {
         const data = await response.json();
-        console.log("Response data:", data);
         if (data.result) {
           const endTime = Date.now();
           return endTime - startTime;
@@ -973,6 +996,97 @@ const AppSettingsOperations = ({
               Click the arrow above to view and switch between available nodes
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* WebSocket Connection Status Card */}
+      <Card className="shadow-md border-0 bg-slate-800/50">
+        <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 pb-4 rounded-t-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wifi className="w-5 h-5 text-steemit-500" />
+              <div>
+                <CardTitle className="text-lg text-white">
+                  WebSocket Connection
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  Real-time data streaming for live updates
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className={`p-4 rounded-lg border ${
+            wsConnected 
+              ? "bg-green-500/10 border-green-500/30" 
+              : "bg-red-500/10 border-red-500/30"
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  wsConnected ? "bg-green-500/20" : "bg-red-500/20"
+                }`}>
+                  {wsReconnecting ? (
+                    <RefreshCw className="w-5 h-5 text-yellow-400 animate-spin" />
+                  ) : wsConnected ? (
+                    <Wifi className="w-5 h-5 text-green-400" />
+                  ) : (
+                    <WifiOff className="w-5 h-5 text-red-400" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400">Connection Status</p>
+                  <div className="flex items-center gap-2">
+                    <p className={`font-medium ${wsConnected ? "text-green-400" : "text-red-400"}`}>
+                      {wsReconnecting ? "Reconnecting..." : wsConnected ? "Connected" : "Disconnected"}
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${
+                        wsConnected
+                          ? "bg-green-500/20 text-green-400 border-green-500/30"
+                          : "bg-red-500/20 text-red-400 border-red-500/30"
+                      }`}
+                    >
+                      {wsConnected ? "Live" : "Offline"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!wsConnected && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setWsReconnecting(true);
+                      steemWebSocket.connect().catch(() => {
+                        setWsReconnecting(false);
+                      });
+                    }}
+                    disabled={wsReconnecting}
+                    className="text-slate-300 border-slate-600 hover:bg-slate-700"
+                  >
+                    {wsReconnecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Reconnect
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 ml-13">
+              wss://dhakawitness.com
+            </p>
+          </div>
         </CardContent>
       </Card>
 

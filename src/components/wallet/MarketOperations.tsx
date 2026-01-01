@@ -105,7 +105,7 @@ const MarketOperations = () => {
               )}
             </div>
             <p className={`text-xs mt-1 ${percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {percentChange >= 0 ? '+' : ''}{(percentChange * 100).toFixed(2)}% (24h)
+              {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}% (24h)
             </p>
           </CardContent>
         </Card>

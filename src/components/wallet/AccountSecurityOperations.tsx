@@ -186,13 +186,21 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
     }
   };
 
-  // Generate a secure random password
+  // Generate a secure random password (Steem-compatible format, ~52 characters)
   const generateSecurePassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    let password = '';
-    for (let i = 0; i < 16; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    // Steem passwords are typically 52 characters starting with P5
+    // They use base58 characters (no 0, O, I, l to avoid confusion)
+    const base58Chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let password = 'P5'; // Standard Steem password prefix
+    
+    // Generate 50 more characters for a total of 52
+    const array = new Uint8Array(50);
+    crypto.getRandomValues(array);
+    
+    for (let i = 0; i < 50; i++) {
+      password += base58Chars.charAt(array[i] % base58Chars.length);
     }
+    
     return password;
   };
 

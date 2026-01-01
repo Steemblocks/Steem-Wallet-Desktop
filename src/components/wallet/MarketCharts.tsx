@@ -26,11 +26,8 @@ interface MarketChartsProps {
 const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
   const chartData = useMemo(() => {
     if (!hourlyHistory || hourlyHistory.length === 0) {
-      console.log('No hourly history data available');
       return { priceData: [], volumeData: [] };
     }
-
-    console.log('Processing hourly history data:', hourlyHistory);
 
     // Sort by timestamp to ensure proper order
     const sortedData = [...hourlyHistory].sort((a, b) => a.timestamp - b.timestamp);
@@ -47,8 +44,6 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
       time: entry.time,
       volume: entry.volume
     }));
-
-    console.log('Processed chart data:', { priceData: priceData.slice(0, 3), volumeData: volumeData.slice(0, 3) });
 
     return { priceData, volumeData };
   }, [hourlyHistory]);
@@ -111,7 +106,7 @@ const MarketCharts = ({ hourlyHistory, ticker }: MarketChartsProps) => {
               {currentPrice.toFixed(6)} SBD
             </span>
             <span className={`text-sm ${percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {percentChange >= 0 ? '+' : ''}{(percentChange * 100).toFixed(2)}%
+              {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
             </span>
           </div>
         </CardHeader>

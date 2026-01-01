@@ -268,15 +268,17 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
               </div>
               <AlertDialogTitle className="text-lg">Cancel Savings Withdrawal?</AlertDialogTitle>
             </div>
-            <AlertDialogDescription className="text-slate-300 leading-relaxed">
-              Are you sure you want to cancel this savings withdrawal? This action will:
-              <ul className="mt-3 space-y-2 ml-4 list-disc text-sm">
-                <li>Stop the withdrawal process immediately</li>
-                <li>Keep your funds in savings account</li>
-                <li>Require starting a new withdrawal if you change your mind</li>
-              </ul>
-              <div className="mt-4 p-3 rounded-lg bg-slate-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400">Note: This operation requires your active key and cannot be undone.</p>
+            <AlertDialogDescription asChild>
+              <div className="text-slate-300 leading-relaxed">
+                <span>Are you sure you want to cancel this savings withdrawal? This action will:</span>
+                <ul className="mt-3 space-y-2 ml-4 list-disc text-sm">
+                  <li>Stop the withdrawal process immediately</li>
+                  <li>Keep your funds in savings account</li>
+                  <li>Require starting a new withdrawal if you change your mind</li>
+                </ul>
+                <div className="mt-4 p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                  <span className="text-xs text-slate-400">Note: This operation requires your active key and cannot be undone.</span>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

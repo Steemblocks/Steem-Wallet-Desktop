@@ -118,7 +118,6 @@ const GovernanceOperations = () => {
         if (username) {
           const userVotes = await steemApi.getUserProposalVotes(username);
           setUserVotedProposals(userVotes);
-          console.log('User voted proposals:', userVotes);
         }
       } catch (err) {
         console.error('Error fetching governance data:', err);

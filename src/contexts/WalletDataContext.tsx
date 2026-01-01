@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { MarketPriceData, PricesData } from "@/services/priceApi";
 import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
 import { SecureStorageFactory } from "@/services/secureStorage";
 import { getPrimaryEndpoint } from "@/config/api";
+import { steemWebSocket, GlobalPropsData, PowerMeterData as WsPowerMeterData } from "@/services/steemWebSocket";
 
 // ===== Types =====
 export interface WalletData {
@@ -306,75 +308,36 @@ const calculateRechargeTime = (currentPower: number): string => {
   }
 };
 
-// Fetch and calculate power meter data (voting power, downvote power, RC, vote value)
-const fetchPowerMeterData = async (
-  username: string
-): Promise<PowerMeterData | null> => {
+// Process WebSocket power meter data to context's PowerMeterData format
+const processPowerMeterData = (wsData: WsPowerMeterData): PowerMeterData | null => {
   try {
-    // Fetch account data with NAI format and reward fund in parallel
-    const [accountResponse, rewardFundResponse] = await Promise.all([
-      fetch(getPrimaryEndpoint(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "database_api.find_accounts",
-          params: { accounts: [username] },
-          id: 1,
-        }),
-      }).then((r) => r.json()),
-      fetch(getPrimaryEndpoint(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "condenser_api.get_reward_fund",
-          params: ["post"],
-          id: 1,
-        }),
-      }).then((r) => r.json()),
-    ]);
-
-    if (!accountResponse?.result?.accounts?.[0]) {
-      console.error("No account data found for power meters");
-      return null;
-    }
-
-    const account = accountResponse.result.accounts[0];
+    const account = wsData.account;
+    const rcAccount = wsData.rc_account;
+    const rewardFund = wsData.reward_fund;
+    const medianPrice = wsData.median_history_price;
     const now = Date.now();
 
     // Get vesting values in RAW units (NAI format)
     const vestingSharesRaw =
       account.vesting_shares?.nai === "@@000000037"
         ? BigInt(account.vesting_shares.amount)
-        : BigInt(Math.floor(parseFloat(account.vesting_shares || "0") * 1e6));
+        : BigInt(Math.floor(parseFloat(account.vesting_shares?.amount || "0") * 1e6));
     const receivedVestingRaw =
       account.received_vesting_shares?.nai === "@@000000037"
         ? BigInt(account.received_vesting_shares.amount)
-        : BigInt(
-            Math.floor(parseFloat(account.received_vesting_shares || "0") * 1e6)
-          );
+        : BigInt(Math.floor(parseFloat(account.received_vesting_shares?.amount || "0") * 1e6));
     const delegatedVestingRaw =
       account.delegated_vesting_shares?.nai === "@@000000037"
         ? BigInt(account.delegated_vesting_shares.amount)
-        : BigInt(
-            Math.floor(
-              parseFloat(account.delegated_vesting_shares || "0") * 1e6
-            )
-          );
+        : BigInt(Math.floor(parseFloat(account.delegated_vesting_shares?.amount || "0") * 1e6));
     const vestingWithdrawRateRaw =
       account.vesting_withdraw_rate?.nai === "@@000000037"
         ? BigInt(account.vesting_withdraw_rate.amount)
-        : BigInt(
-            Math.floor(parseFloat(account.vesting_withdraw_rate || "0") * 1e6)
-          );
+        : BigInt(Math.floor(parseFloat(account.vesting_withdraw_rate?.amount || "0") * 1e6));
 
     // Total effective vests
     const effectiveVestsRaw =
-      vestingSharesRaw +
-      receivedVestingRaw -
-      delegatedVestingRaw -
-      vestingWithdrawRateRaw;
+      vestingSharesRaw + receivedVestingRaw - delegatedVestingRaw - vestingWithdrawRateRaw;
     const totalVests = Number(effectiveVestsRaw) / 1e6;
     const maxVotingMana = effectiveVestsRaw;
 
@@ -383,8 +346,7 @@ const fetchPowerMeterData = async (
     const lastVoteTime = votingManabar.last_update_time * 1000;
     const secondsSinceVote = Math.floor((now - lastVoteTime) / 1000);
     const storedVotingMana = BigInt(votingManabar.current_mana);
-    const regeneratedMana =
-      (maxVotingMana * BigInt(secondsSinceVote)) / BigInt(432000);
+    const regeneratedMana = (maxVotingMana * BigInt(secondsSinceVote)) / BigInt(432000);
     let currentVotingMana = storedVotingMana + regeneratedMana;
     if (currentVotingMana > maxVotingMana) currentVotingMana = maxVotingMana;
     const currentVotingPower =
@@ -398,66 +360,40 @@ const fetchPowerMeterData = async (
     const lastDownvoteTime = downvoteManabar.last_update_time * 1000;
     const secondsSinceDownvote = Math.floor((now - lastDownvoteTime) / 1000);
     const storedDownvoteMana = BigInt(downvoteManabar.current_mana);
-    const regeneratedDownvoteMana =
-      (maxDownvoteMana * BigInt(secondsSinceDownvote)) / BigInt(432000);
+    const regeneratedDownvoteMana = (maxDownvoteMana * BigInt(secondsSinceDownvote)) / BigInt(432000);
     let currentDownvoteMana = storedDownvoteMana + regeneratedDownvoteMana;
-    if (currentDownvoteMana > maxDownvoteMana)
-      currentDownvoteMana = maxDownvoteMana;
+    if (currentDownvoteMana > maxDownvoteMana) currentDownvoteMana = maxDownvoteMana;
     const currentDownvotePower =
       maxDownvoteMana > BigInt(0)
         ? Number((currentDownvoteMana * BigInt(10000)) / maxDownvoteMana) / 100
         : 0;
 
-    // Fetch RC data
-    const rcResponse = await fetch(getPrimaryEndpoint(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method: "rc_api.find_rc_accounts",
-        params: { accounts: [username] },
-        id: 1,
-      }),
-    }).then((r) => r.json());
-
+    // Calculate RC percentage
     let rcPercentage = 100;
-    if (rcResponse?.result?.rc_accounts?.[0]) {
-      const rcAccount = rcResponse.result.rc_accounts[0];
+    if (rcAccount) {
       const maxRcMana = BigInt(rcAccount.max_rc);
       const lastRcUpdate = Number(rcAccount.rc_manabar.last_update_time) * 1000;
       const storedRcMana = BigInt(rcAccount.rc_manabar.current_mana);
       const secondsSinceRcUpdate = (now - lastRcUpdate) / 1000;
       const rcRegenRate = maxRcMana / BigInt(432000);
-      const regeneratedRc =
-        rcRegenRate * BigInt(Math.floor(secondsSinceRcUpdate));
+      const regeneratedRc = rcRegenRate * BigInt(Math.floor(secondsSinceRcUpdate));
       let currentRcMana = storedRcMana + regeneratedRc;
       if (currentRcMana > maxRcMana) currentRcMana = maxRcMana;
       rcPercentage = Number((currentRcMana * BigInt(10000)) / maxRcMana) / 100;
     }
 
     // Calculate vote value
-    const rewardBalance = parseFloat(
-      rewardFundResponse.result?.reward_balance || "0"
-    );
-    const recentClaims = parseFloat(
-      rewardFundResponse.result?.recent_claims || "1"
-    );
+    const rewardBalance = parseFloat(rewardFund?.reward_balance || "0");
+    const recentClaims = parseFloat(rewardFund?.recent_claims || "1");
 
-    // Get SBD/STEEM price from blockchain median
+    // Get SBD/STEEM price from median
     let sbdPerSteem: number | null = null;
-    try {
-      const medianPrice = await steemApi.getCurrentMedianHistoryPrice();
-      if (medianPrice?.base && medianPrice?.quote) {
-        const base = parseFloat(medianPrice.base.replace(" SBD", ""));
-        const quote = parseFloat(medianPrice.quote.replace(" STEEM", ""));
-        if (base > 0 && quote > 0) {
-          sbdPerSteem = base / quote;
-        }
+    if (medianPrice?.base && medianPrice?.quote) {
+      const base = parseFloat(medianPrice.base.replace(" SBD", ""));
+      const quote = parseFloat(medianPrice.quote.replace(" STEEM", ""));
+      if (base > 0 && quote > 0) {
+        sbdPerSteem = base / quote;
       }
-    } catch (e) {
-      console.warn(
-        "Failed to fetch blockchain median price for vote value calculation"
-      );
     }
 
     // Calculate vote values
@@ -492,7 +428,7 @@ const fetchPowerMeterData = async (
       fullVoteValue: fullVoteSbd,
     };
   } catch (error) {
-    console.error("Error fetching power meter data:", error);
+    console.error("Error processing WebSocket power meter data:", error);
     return null;
   }
 };
@@ -585,6 +521,126 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
   
   // Active tab state for optimized API calls (default "overview" won't need market data)
   const [activeTab, setActiveTab] = useState<string>("overview");
+  
+  // WebSocket connection state
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsUnsubscribeRef = useRef<(() => void)[]>([]);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    steemWebSocket.connect()
+      .then(() => {
+        setWsConnected(true);
+      })
+      .catch((err) => {
+        console.warn('[WalletDataContext] WebSocket connection failed, using REST polling');
+        setWsConnected(false);
+      });
+
+    const unsubConnect = steemWebSocket.onConnect(() => {
+      setWsConnected(true);
+    });
+
+    const unsubDisconnect = steemWebSocket.onDisconnect(() => {
+      setWsConnected(false);
+    });
+
+    return () => {
+      unsubConnect();
+      unsubDisconnect();
+      // Clean up all subscriptions
+      wsUnsubscribeRef.current.forEach(unsub => unsub());
+      wsUnsubscribeRef.current = [];
+    };
+  }, []);
+
+  // Subscribe to global properties via WebSocket
+  useEffect(() => {
+    if (!wsConnected) return;
+
+    const unsubscribe = steemWebSocket.subscribeToGlobalProps((globalProps: GlobalPropsData) => {
+      // Calculate steemPerMvests from global props
+      const totalVestingFund = parseFloat(globalProps.total_vesting_fund_steem.split(' ')[0]);
+      const totalVestingShares = parseFloat(globalProps.total_vesting_shares.split(' ')[0]);
+      const steemPerMvests = (totalVestingFund / totalVestingShares) * 1000000;
+
+      setData(prev => ({
+        ...prev,
+        steemPerMvests,
+      }));
+    });
+
+    wsUnsubscribeRef.current.push(unsubscribe);
+
+    return () => {
+      unsubscribe();
+      wsUnsubscribeRef.current = wsUnsubscribeRef.current.filter(u => u !== unsubscribe);
+    };
+  }, [wsConnected]);
+
+  // Subscribe to account updates via WebSocket when logged in
+  useEffect(() => {
+    if (!wsConnected || !selectedAccount) return;
+
+    const unsubscribe = steemWebSocket.subscribeToAccount(selectedAccount, async (accountUpdate) => {
+      // Update account data with real-time changes
+      if (data.account && data.priceData) {
+        // Merge the update with existing account data
+        const updatedAccount = {
+          ...data.account,
+          balance: accountUpdate.balance || data.account.balance,
+          sbd_balance: accountUpdate.sbd_balance || data.account.sbd_balance,
+          vesting_shares: accountUpdate.vesting_shares || data.account.vesting_shares,
+          reward_steem_balance: accountUpdate.reward_steem_balance || data.account.reward_steem_balance,
+          reward_sbd_balance: accountUpdate.reward_sbd_balance || data.account.reward_sbd_balance,
+          reward_vesting_balance: accountUpdate.reward_vesting_balance || data.account.reward_vesting_balance,
+        };
+
+        // Recalculate wallet data
+        const walletData = await formatWalletDataFromAccount(
+          updatedAccount,
+          data.priceData,
+          data.steemPerMvests
+        );
+
+        setData(prev => ({
+          ...prev,
+          account: updatedAccount,
+          walletData,
+        }));
+      }
+    });
+
+    wsUnsubscribeRef.current.push(unsubscribe);
+
+    return () => {
+      unsubscribe();
+      wsUnsubscribeRef.current = wsUnsubscribeRef.current.filter(u => u !== unsubscribe);
+    };
+  }, [wsConnected, selectedAccount, data.account, data.priceData, data.steemPerMvests]);
+
+  // Subscribe to power meter updates via WebSocket when logged in
+  useEffect(() => {
+    if (!wsConnected || !selectedAccount) return;
+
+    const unsubscribe = steemWebSocket.subscribeToPowerMeter(selectedAccount, (wsData) => {
+      // Process WebSocket data and update power meters
+      const processedData = processPowerMeterData(wsData);
+      if (processedData) {
+        setData(prev => ({
+          ...prev,
+          powerMeterData: processedData,
+        }));
+      }
+    });
+
+    wsUnsubscribeRef.current.push(unsubscribe);
+
+    return () => {
+      unsubscribe();
+      wsUnsubscribeRef.current = wsUnsubscribeRef.current.filter(u => u !== unsubscribe);
+    };
+  }, [wsConnected, selectedAccount]);
 
   // Load saved user on mount
   useEffect(() => {
@@ -691,12 +747,17 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         setLoadingStage("Loading history & power data...");
 
         // Stage 4: Fetch account history and power meter data (90%)
+        // Try to fetch power meter data via WebSocket for faster initial load
         // Skip heavy market history data - it will be fetched on-demand when user visits market tab
-        const [accountHistory, powerMeterData] =
-          await Promise.all([
-            steemApi.getAccountHistory(username, -1, 100).catch(() => []),
-            fetchPowerMeterData(username).catch(() => null),
-          ]);
+        const [accountHistory, wsPowerMeterData] = await Promise.all([
+          steemApi.getAccountHistory(username, -1, 100).catch(() => []),
+          steemWebSocket.isConnected() 
+            ? steemWebSocket.fetchPowerMeterData(username).catch(() => null)
+            : Promise.resolve(null)
+        ]);
+        
+        // Process power meter data if received
+        const powerMeterData = wsPowerMeterData ? processPowerMeterData(wsPowerMeterData) : null;
 
         setLoadingProgress(90);
         setLoadingStage("Finalizing...");
@@ -758,9 +819,14 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
     }
   }, [selectedAccount, fetchAllData]);
 
-  // Auto-refresh every 30 seconds (smart refresh based on active tab)
+  // Auto-refresh with adaptive interval based on WebSocket connection
+  // When WebSocket is connected: 60 seconds (just for price/power data that WS doesn't provide)
+  // When WebSocket is disconnected: 30 seconds (fallback polling)
   useEffect(() => {
     if (!selectedAccount || isInitialLoading) return;
+
+    // Use longer interval when WebSocket is connected (real-time updates handle most data)
+    const refreshInterval = wsConnected ? 60000 : 30000;
 
     const interval = setInterval(async () => {
       // Only do a minimal refresh for non-market tabs
@@ -768,28 +834,38 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         // Just refresh account data, not market data
         setIsRefreshing(true);
         try {
-          const [steemPerMvests, priceData, account] = await Promise.all([
-            getSteemPerMvests(),
-            fetchPriceFromSteemMarket(),
-            steemApi.getAccount(selectedAccount),
-          ]);
-
-          if (account && priceData) {
-            const walletData = await formatWalletDataFromAccount(
-              account,
-              priceData,
-              steemPerMvests
-            );
-            const powerMeterData = await fetchPowerMeterData(selectedAccount).catch(() => null);
+          // If WebSocket is connected, we only need to fetch price data
+          // Account data and power meter data come from WebSocket
+          if (wsConnected) {
+            const priceData = await fetchPriceFromSteemMarket();
             
             setData((prev) => ({
               ...prev,
-              account,
-              walletData,
               priceData,
-              steemPerMvests,
-              powerMeterData,
             }));
+          } else {
+            // Fallback to full polling when WebSocket is down
+            const [steemPerMvests, priceData, account] = await Promise.all([
+              getSteemPerMvests(),
+              fetchPriceFromSteemMarket(),
+              steemApi.getAccount(selectedAccount),
+            ]);
+
+            if (account && priceData) {
+              const walletData = await formatWalletDataFromAccount(
+                account,
+                priceData,
+                steemPerMvests
+              );
+              
+              setData((prev) => ({
+                ...prev,
+                account,
+                walletData,
+                priceData,
+                steemPerMvests,
+              }));
+            }
           }
         } catch (err) {
           console.error("Error in minimal refresh:", err);
@@ -798,12 +874,15 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         }
       } else {
         // Full refresh including market data when on market tab
-        fetchAllData(selectedAccount, true);
+        // Market tab uses its own WebSocket subscriptions via useMarketData hook
+        if (!wsConnected) {
+          fetchAllData(selectedAccount, true);
+        }
       }
-    }, 30000);
+    }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [selectedAccount, isInitialLoading, fetchAllData, activeTab]);
+  }, [selectedAccount, isInitialLoading, fetchAllData, activeTab, wsConnected]);
 
   // Actions
   const refreshAll = useCallback(async () => {
@@ -916,10 +995,36 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
 };
 
 // ===== Hook =====
+// Track if we've already warned about HMR context issue
+let hmrWarned = false;
+
 export const useWalletData = (): WalletDataContextType => {
   const context = useContext(WalletDataContext);
   if (context === undefined) {
-    throw new Error("useWalletData must be used within a WalletDataProvider");
+    // During HMR, the context might briefly be undefined
+    // This provides a graceful fallback instead of crashing
+    if (!hmrWarned) {
+      hmrWarned = true;
+      // Reset after a short delay to allow warning again if issue persists
+      setTimeout(() => { hmrWarned = false; }, 5000);
+    }
+    return {
+      data: defaultPreloadedData,
+      isInitialLoading: true,
+      isRefreshing: false,
+      loadingProgress: 0,
+      loadingStage: "Initializing...",
+      error: null,
+      refreshAll: async () => {},
+      refreshAccount: async () => {},
+      refreshMarket: async () => {},
+      setSelectedAccount: () => {},
+      selectedAccount: "",
+      loggedInUser: null,
+      setLoggedInUser: () => {},
+      activeTab: "overview",
+      setActiveTab: () => {},
+    };
   }
   return context;
 };
