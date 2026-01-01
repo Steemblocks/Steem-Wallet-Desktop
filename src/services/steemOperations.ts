@@ -2,8 +2,19 @@
 import * as dsteem from 'dsteem';
 import { getPrimaryEndpoint } from '@/config/api';
 
-// Initialize dsteem client with centralized endpoint configuration
-const client = new dsteem.Client(getPrimaryEndpoint());
+// Create a getter for the client to ensure we always use the current endpoint
+const getClient = (): dsteem.Client => {
+  return new dsteem.Client(getPrimaryEndpoint());
+};
+
+// Keep a reference for the client that can be refreshed
+let client = new dsteem.Client(getPrimaryEndpoint());
+
+// Function to refresh the client with the current endpoint
+export const refreshClient = (): void => {
+  client = new dsteem.Client(getPrimaryEndpoint());
+  console.log('Steem client refreshed with endpoint:', getPrimaryEndpoint());
+};
 
 export interface TransferOperation {
   from: string;

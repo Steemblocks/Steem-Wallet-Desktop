@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc://; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://api.steemit.com https://api.steemitdev.com https://steemd.steemworld.org https://api.moecki.online https://api.coingecko.com http://ipc.localhost; img-src 'self' https:; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:"
+      "csp": "default-src 'self' ipc://; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: http://ipc.localhost; img-src 'self' https:; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:"
     }
   },
   "bundle": {

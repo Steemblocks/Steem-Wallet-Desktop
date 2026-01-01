@@ -87,6 +87,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
         toast({
           title: "Transaction Already Processed",
           description: "This delegation update was already submitted successfully.",
+          variant: "success",
         });
         setIsOpen(false);
         onSuccess();
@@ -146,6 +147,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
     toast({
       title: "Delegation Updated",
       description: `Successfully updated delegation to @${delegatee}`,
+      variant: "success",
     });
     setIsOpen(false);
     onSuccess();
@@ -176,6 +178,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
         toast({
           title: "Transaction Already Processed",
           description: "This delegation removal was already submitted successfully.",
+          variant: "success",
         });
         setIsOpen(false);
         onSuccess();

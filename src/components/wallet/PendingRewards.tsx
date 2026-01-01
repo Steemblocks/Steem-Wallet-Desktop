@@ -92,6 +92,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         toast({
           title: "Rewards Already Claimed",
           description: "Your rewards were already claimed.",
+          variant: "success",
         });
         onUpdate?.();
       } else {
@@ -145,6 +146,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
       toast({
         title: "Rewards Claimed Successfully",
         description: "Your pending rewards have been claimed and added to your wallet",
+        variant: "success",
       });
       // Call onUpdate to refresh data without page reload
       onUpdate?.();
@@ -157,6 +159,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         toast({
           title: "Rewards Already Claimed",
           description: "Your rewards were already claimed successfully.",
+          variant: "success",
         });
         onUpdate?.();
         setIsClaiming(false);

@@ -115,6 +115,7 @@ export const ChangePasswordDialog = ({ isOpen, onClose }: ChangePasswordDialogPr
         toast({
           title: "Password Changed",
           description: "Your app lock password has been updated successfully.",
+          variant: "success",
         });
         handleClose();
       } else {

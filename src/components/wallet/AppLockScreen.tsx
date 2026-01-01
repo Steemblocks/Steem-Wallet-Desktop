@@ -73,6 +73,7 @@ export const AppLockScreen = ({ onUnlock, onReset }: AppLockScreenProps) => {
         toast({
           title: "Wallet Unlocked",
           description: "Welcome back!",
+          variant: "success",
         });
         onUnlock();
       } else {

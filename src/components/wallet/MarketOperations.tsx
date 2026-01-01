@@ -20,8 +20,6 @@ const MarketOperations = () => {
   const { toast } = useToast();
   const { orderBook, ticker, volume, tradeHistory, hourlyHistory, isLoading, error } = useMarketData();
 
-  console.log('MarketOperations data:', { orderBook, ticker, volume, tradeHistory, hourlyHistory, isLoading, error });
-
   const handleTradeOrder = () => {
     if (!amount || !price) return;
     
@@ -31,6 +29,7 @@ const MarketOperations = () => {
     toast({
       title: `${tradeType === "buy" ? "Buy" : "Sell"} Order Placed`,
       description: `${action} ${amount} STEEM ${fromTo} ${price} SBD each`,
+      variant: "success",
     });
     setAmount("");
     setPrice("");

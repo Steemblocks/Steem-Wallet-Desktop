@@ -6,10 +6,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="dark"
+      position="bottom-right"
       className="toaster group"
       duration={3000}
+      style={{
+        // Ensure Sonner toasts are also completely independent
+        zIndex: 2147483646,
+      }}
       toastOptions={{
         duration: 3000,
+        style: {
+          // Make each toast float independently
+          zIndex: 2147483646,
+        },
         classNames: {
           toast:
             "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",

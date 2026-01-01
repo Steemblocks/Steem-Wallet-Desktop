@@ -117,3 +117,33 @@ textarea::placeholder {
 :root {
   color-scheme: dark;
 }
+
+/* Toast viewport - ensure it's always visible and never clipped */
+[data-radix-toast-viewport] {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  bottom: 80px !important;
+  right: 20px !important;
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+/* Toast root - ensure content is never cut off */
+[data-radix-toast-root],
+[data-state="open"][data-radix-toast-root] {
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* Sonner toasts - ensure they float independently */
+[data-sonner-toaster] {
+  position: fixed !important;
+  z-index: 2147483646 !important;
+}
+
+[data-sonner-toast] {
+  z-index: 2147483646 !important;
+  overflow: visible !important;
+}

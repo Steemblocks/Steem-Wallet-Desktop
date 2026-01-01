@@ -122,6 +122,7 @@ const ProposalOperations = () => {
         toast({
           title: "Vote Already Processed",
           description: `Your ${approve ? 'vote' : 'unvote'} was already submitted.`,
+          variant: "success",
         });
         // Update local state as if successful
         if (approve) {
@@ -197,6 +198,7 @@ const ProposalOperations = () => {
         toast({
           title: "Votes Already Processed",
           description: `Your bulk ${approve ? 'votes' : 'unvotes'} were already submitted.`,
+          variant: "success",
         });
         // Update local state as if successful
         if (approve) {
@@ -234,6 +236,7 @@ const ProposalOperations = () => {
       toast({
         title: `Proposal ${action} Successful`,
         description: `Successfully ${action}d on proposal(s) ${operation.proposal_ids.join(', ')}`,
+        variant: "success",
       });
       
       // Update local vote state
@@ -257,6 +260,7 @@ const ProposalOperations = () => {
         toast({
           title: "Vote Already Processed",
           description: `Your ${action} was already submitted successfully.`,
+          variant: "success",
         });
         // Update local state as if successful
         if (operation.approve) {

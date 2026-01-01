@@ -97,6 +97,7 @@ const PowerOperations = () => {
         toast({
           title: "Power Up Already Processed",
           description: "This power up transaction was already submitted.",
+          variant: "success",
         });
         setPowerUpAmount("");
         setPowerUpRecipient("");
@@ -164,6 +165,7 @@ const PowerOperations = () => {
         toast({
           title: "Power Down Already Processed",
           description: "This power down transaction was already submitted.",
+          variant: "success",
         });
         setPowerDownAmount("");
         refetch();
@@ -199,6 +201,7 @@ const PowerOperations = () => {
       toast({
         title: "Power Up Successful",
         description: `${powerUpAmount} STEEM has been powered up`,
+        variant: "success",
       });
       setPowerUpAmount("");
       setPowerUpRecipient("");
@@ -213,6 +216,7 @@ const PowerOperations = () => {
         toast({
           title: "Power Up Already Processed",
           description: "This power up transaction was already submitted successfully.",
+          variant: "success",
         });
         setPowerUpAmount("");
         setPowerUpRecipient("");
@@ -260,6 +264,7 @@ const PowerOperations = () => {
       toast({
         title: "Power Down Initiated",
         description: `${powerDownAmount} STEEM power down started`,
+        variant: "success",
       });
       setPowerDownAmount("");
       refetch();
@@ -273,6 +278,7 @@ const PowerOperations = () => {
         toast({
           title: "Power Down Already Processed",
           description: "This power down transaction was already submitted successfully.",
+          variant: "success",
         });
         setPowerDownAmount("");
         refetch();

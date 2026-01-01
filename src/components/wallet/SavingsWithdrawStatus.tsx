@@ -146,6 +146,7 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
       toast({
         title: "Withdrawal Cancelled",
         description: "Your savings withdrawal has been cancelled",
+        variant: "success",
       });
       // Remove from local state
       setWithdrawals(prev => prev.filter(w => w.request_id !== requestId));
@@ -159,6 +160,7 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
         toast({
           title: "Withdrawal Already Cancelled",
           description: "This cancellation was already processed.",
+          variant: "success",
         });
         setWithdrawals(prev => prev.filter(w => w.request_id !== requestId));
         onUpdate?.();

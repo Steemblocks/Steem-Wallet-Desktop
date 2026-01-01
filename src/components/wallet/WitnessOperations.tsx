@@ -72,6 +72,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
         toast({
           title: "Vote Already Processed",
           description: "This witness vote was already submitted.",
+          variant: "success",
         });
         setTimeout(() => invalidateQueries(), 1000);
       }
@@ -99,6 +100,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
       toast({
         title: "Vote Successful",
         description: `${approve ? "Voted for" : "Removed vote from"} witness @${witness}`,
+        variant: "success",
       });
       
       // Invalidate queries to refresh data
@@ -145,6 +147,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
         toast({
           title: "Proxy Already Set",
           description: "This proxy setting was already submitted.",
+          variant: "success",
         });
       }
       transactionSubmittedRef.current = false;
@@ -175,6 +178,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
         toast({
           title: "Proxy Already Removed",
           description: "This proxy removal was already submitted.",
+          variant: "success",
         });
       }
       transactionSubmittedRef.current = false;
@@ -207,6 +211,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
       toast({
         title: "Proxy Updated",
         description: proxy ? `Set @${proxy} as your witness proxy` : "Removed witness proxy",
+        variant: "success",
       });
       
       if (proxy) setProxyAccount("");

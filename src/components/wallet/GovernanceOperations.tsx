@@ -209,6 +209,7 @@ const GovernanceOperations = () => {
       toast({
         title: `Proposal ${action} Successful`,
         description: `Successfully ${action}d on proposal(s) ${operation.proposal_ids.join(', ')}`,
+        variant: "success",
       });
       
       // Update local vote state
@@ -232,6 +233,7 @@ const GovernanceOperations = () => {
         toast({
           title: "Vote Already Processed",
           description: "This proposal vote was already submitted.",
+          variant: "success",
         });
         // Update local state anyway
         if (operation.approve) {

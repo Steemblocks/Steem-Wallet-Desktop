@@ -75,6 +75,7 @@ const TransferOperations = () => {
     toast({
       title: "Operation Successful",
       description: `${operationType.charAt(0).toUpperCase() + operationType.slice(1)} completed successfully`,
+      variant: "success",
     });
     
     // Invalidate account history cache to show new transaction immediately

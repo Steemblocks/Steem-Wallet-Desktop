@@ -78,6 +78,7 @@ export const AppLockSetupDialog = ({ isOpen, onSetupComplete }: AppLockSetupDial
         toast({
           title: "App Lock Created",
           description: "Your wallet is now protected with an app lock password.",
+          variant: "success",
         });
         onSetupComplete();
       } else {

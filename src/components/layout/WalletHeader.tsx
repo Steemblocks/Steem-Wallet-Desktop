@@ -1,10 +1,25 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Menu, Wallet, Users, ArrowRightLeft, TrendingUp, Vote, User, LogOut, Plus, Check, Trash2, ChevronDown, Loader2 } from "lucide-react";
+import {
+  Search,
+  Menu,
+  Wallet,
+  Users,
+  ArrowRightLeft,
+  TrendingUp,
+  Vote,
+  User,
+  LogOut,
+  Plus,
+  Check,
+  Trash2,
+  ChevronDown,
+  Loader2,
+  Settings,
+} from "lucide-react";
 import LoginDialog from "@/components/wallet/LoginDialog";
 import { useToast } from "@/hooks/use-toast";
 import { accountManager, StoredAccount } from "@/services/accountManager";
@@ -37,7 +52,10 @@ import {
 interface WalletHeaderProps {
   selectedAccount: string;
   loggedInUser: string | null;
-  onLoginSuccess: (username: string, method: 'privatekey' | 'masterpassword') => void;
+  onLoginSuccess: (
+    username: string,
+    method: "privatekey" | "masterpassword"
+  ) => void;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onLogout?: () => void;
@@ -45,7 +63,16 @@ interface WalletHeaderProps {
   onRefresh?: () => void;
 }
 
-const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab, onTabChange, onLogout, onAccountSwitch, onRefresh }: WalletHeaderProps) => {
+const WalletHeader = ({
+  selectedAccount,
+  loggedInUser,
+  onLoginSuccess,
+  activeTab,
+  onTabChange,
+  onLogout,
+  onAccountSwitch,
+  onRefresh,
+}: WalletHeaderProps) => {
   const [searchUsername, setSearchUsername] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -69,7 +96,7 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
 
   const handleAccountSwitch = async (username: string) => {
     if (username === loggedInUser || isSwitching) return;
-    
+
     setIsSwitching(true);
     try {
       await accountManager.switchAccount(username);
@@ -78,9 +105,10 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
       toast({
         title: "Account Switched",
         description: `Switched to @${username}`,
+        variant: "success",
       });
     } catch (error) {
-      console.error('Error switching account:', error);
+      console.error("Error switching account:", error);
       toast({
         title: "Switch Failed",
         description: "Could not switch account. Please try again.",
@@ -96,7 +124,7 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
       await accountManager.removeAccount(username);
       const accounts = await accountManager.getAccounts();
       setStoredAccounts(accounts);
-      
+
       // If we removed the current account, trigger logout or switch
       if (username === loggedInUser) {
         if (accounts.length > 0) {
@@ -105,13 +133,14 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
           onLogout?.();
         }
       }
-      
+
       toast({
         title: "Account Removed",
         description: `@${username} has been removed from the app.`,
+        variant: "success",
       });
     } catch (error) {
-      console.error('Error removing account:', error);
+      console.error("Error removing account:", error);
       toast({
         title: "Remove Failed",
         description: "Could not remove account. Please try again.",
@@ -129,6 +158,7 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
     { id: "market", label: "Market", icon: TrendingUp },
     { id: "governance", label: "Governance", icon: Vote },
     { id: "account", label: "Account", icon: User },
+    { id: "settings", label: "App Settings", icon: Settings },
   ];
 
   const handleTabChange = (tab: string) => {
@@ -139,33 +169,63 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
   const handleLogoClick = () => {
     // Silently refresh all data without showing loading state
     // Account data (includes pending rewards, power down status, savings balances)
-    queryClient.invalidateQueries({ queryKey: ['steemAccount'], refetchType: 'active' });
-    
+    queryClient.invalidateQueries({
+      queryKey: ["steemAccount"],
+      refetchType: "active",
+    });
+
     // Transaction history
-    queryClient.invalidateQueries({ queryKey: ['accountHistory'], refetchType: 'active' });
-    
+    queryClient.invalidateQueries({
+      queryKey: ["accountHistory"],
+      refetchType: "active",
+    });
+
     // Delegations (outgoing)
-    queryClient.invalidateQueries({ queryKey: ['outgoing-delegations'], refetchType: 'active' });
-    queryClient.invalidateQueries({ queryKey: ['delegations'], refetchType: 'active' });
-    
+    queryClient.invalidateQueries({
+      queryKey: ["outgoing-delegations"],
+      refetchType: "active",
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["delegations"],
+      refetchType: "active",
+    });
+
     // Witnesses
-    queryClient.invalidateQueries({ queryKey: ['witnesses'], refetchType: 'active' });
-    queryClient.invalidateQueries({ queryKey: ['userWitnessVotes'], refetchType: 'active' });
-    
+    queryClient.invalidateQueries({
+      queryKey: ["witnesses"],
+      refetchType: "active",
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["userWitnessVotes"],
+      refetchType: "active",
+    });
+
     // Market data
-    queryClient.invalidateQueries({ queryKey: ['simplifiedMarketData'], refetchType: 'active' });
-    queryClient.invalidateQueries({ queryKey: ['hourlyMarketHistory'], refetchType: 'active' });
-    queryClient.invalidateQueries({ queryKey: ['dailyMarketHistory'], refetchType: 'active' });
-    queryClient.invalidateQueries({ queryKey: ['marketData'], refetchType: 'active' });
-    
+    queryClient.invalidateQueries({
+      queryKey: ["simplifiedMarketData"],
+      refetchType: "active",
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["hourlyMarketHistory"],
+      refetchType: "active",
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["dailyMarketHistory"],
+      refetchType: "active",
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["marketData"],
+      refetchType: "active",
+    });
+
     // Call optional refresh callback
     onRefresh?.();
-    
+
     // Navigate to appropriate page
     if (loggedInUser) {
       navigate(`/@${loggedInUser}`);
     } else {
-      navigate('/');
+      navigate("/");
     }
   };
 
@@ -179,16 +239,16 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
     <div className="bg-slate-900 shadow-sm border-b border-slate-700 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-2 sm:py-3">
         <div className="flex items-center justify-between gap-2 sm:gap-4">
-          <div 
+          <div
             className="flex items-center gap-2 sm:gap-3 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={handleLogoClick}
           >
             <div className="flex-shrink-0 flex items-center justify-center">
-              <img 
-                src="/steem-logo.png" 
-                alt="Steem Wallet Logo" 
+              <img
+                src="/steem-logo.png"
+                alt="Steem Wallet Logo"
                 className="object-contain object-center rounded-full"
-                style={{ width: '49px', height: '49px' }}
+                style={{ width: "49px", height: "49px" }}
                 draggable={false}
               />
             </div>
@@ -197,11 +257,13 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
                 Steem Wallet
               </h1>
               {selectedAccount && (
-                <p className="text-xs sm:text-sm text-slate-400 truncate">@{selectedAccount}</p>
+                <p className="text-xs sm:text-sm text-slate-400 truncate">
+                  @{selectedAccount}
+                </p>
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-1 sm:gap-3 flex-1 justify-end">
             <div className="relative hidden sm:flex flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 w-4 h-4" />
@@ -209,72 +271,92 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
                 placeholder="Search username..."
                 value={searchUsername}
                 onChange={(e) => setSearchUsername(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 className="pl-10 w-full text-sm bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
               />
             </div>
-            
+
             {loggedInUser ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button 
-                    className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-                  >
-                    <img 
+                  <button className="flex items-center gap-1 hover:opacity-80 transition-opacity">
+                    <img
                       src={`https://steemitimages.com/u/${loggedInUser}/avatar`}
                       alt={`@${loggedInUser}`}
                       className="w-9 h-9 rounded-full border-2 border-steemit-500 object-cover"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://steemitimages.com/u/${loggedInUser}/avatar/small`;
+                        (
+                          e.target as HTMLImageElement
+                        ).src = `https://steemitimages.com/u/${loggedInUser}/avatar/small`;
                       }}
                     />
                     <ChevronDown className="w-4 h-4 text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 bg-slate-900 border-slate-700">
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64 bg-slate-900 border-slate-700"
+                >
                   {/* Current account section */}
                   <div className="px-2 py-2">
-                    <p className="text-xs text-slate-400 mb-2">Current Account</p>
-                    <div 
+                    <p className="text-xs text-slate-400 mb-2">
+                      Current Account
+                    </p>
+                    <div
                       className="flex items-center gap-3 p-2 rounded-lg bg-steemit-500/10 cursor-pointer hover:bg-steemit-500/20"
                       onClick={() => navigate(`/@${loggedInUser}`)}
                     >
-                      <img 
+                      <img
                         src={`https://steemitimages.com/u/${loggedInUser}/avatar`}
                         alt={`@${loggedInUser}`}
                         className="w-8 h-8 rounded-full object-cover"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">@{loggedInUser}</p>
+                        <p className="text-sm font-medium text-white truncate">
+                          @{loggedInUser}
+                        </p>
                       </div>
                       <Check className="w-4 h-4 text-steemit-500" />
                     </div>
                   </div>
 
                   {/* Other accounts */}
-                  {storedAccounts.filter(a => a.username !== loggedInUser).length > 0 && (
+                  {storedAccounts.filter((a) => a.username !== loggedInUser)
+                    .length > 0 && (
                     <>
                       <DropdownMenuSeparator className="bg-slate-700" />
                       <div className="px-2 py-2">
-                        <p className="text-xs text-slate-400 mb-2">Switch Account</p>
+                        <p className="text-xs text-slate-400 mb-2">
+                          Switch Account
+                        </p>
                         {storedAccounts
-                          .filter(a => a.username !== loggedInUser)
+                          .filter((a) => a.username !== loggedInUser)
                           .map((account) => (
-                            <div 
+                            <div
                               key={account.username}
-                              className={`flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 cursor-pointer group ${isSwitching ? 'opacity-50 pointer-events-none' : ''}`}
+                              className={`flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 cursor-pointer group ${
+                                isSwitching
+                                  ? "opacity-50 pointer-events-none"
+                                  : ""
+                              }`}
                             >
-                              <img 
+                              <img
                                 src={`https://steemitimages.com/u/${account.username}/avatar`}
                                 alt={`@${account.username}`}
                                 className="w-8 h-8 rounded-full object-cover"
-                                onClick={() => handleAccountSwitch(account.username)}
+                                onClick={() =>
+                                  handleAccountSwitch(account.username)
+                                }
                               />
-                              <div 
+                              <div
                                 className="flex-1 min-w-0"
-                                onClick={() => handleAccountSwitch(account.username)}
+                                onClick={() =>
+                                  handleAccountSwitch(account.username)
+                                }
                               >
-                                <p className="text-sm font-medium text-slate-300 truncate">@{account.username}</p>
+                                <p className="text-sm font-medium text-slate-300 truncate">
+                                  @{account.username}
+                                </p>
                               </div>
                               {isSwitching ? (
                                 <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
@@ -297,9 +379,9 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
                   )}
 
                   <DropdownMenuSeparator className="bg-slate-700" />
-                  
+
                   {/* Add account button */}
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="cursor-pointer"
                     onClick={() => setShowAddAccountDialog(true)}
                   >
@@ -310,7 +392,7 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
               </DropdownMenu>
             ) : (
               <LoginDialog onLoginSuccess={onLoginSuccess}>
-                <Button 
+                <Button
                   className="text-xs sm:text-sm px-2 sm:px-4 py-2 whitespace-nowrap flex-shrink-0"
                   size="sm"
                 >
@@ -318,9 +400,9 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
                 </Button>
               </LoginDialog>
             )}
-            
+
             {/* Add Account Dialog */}
-            <LoginDialog 
+            <LoginDialog
               onLoginSuccess={(username, method) => {
                 onLoginSuccess(username, method);
                 setShowAddAccountDialog(false);
@@ -330,10 +412,14 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
             >
               <span className="hidden" />
             </LoginDialog>
-            
+
             <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                >
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Toggle navigation menu</span>
                 </Button>
@@ -341,9 +427,7 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
               <SheetContent side="right" className="w-[300px] sm:w-[350px]">
                 <SheetHeader>
                   <SheetTitle>Navigation</SheetTitle>
-                  <SheetDescription>
-                    Select a section to view
-                  </SheetDescription>
+                  <SheetDescription>Select a section to view</SheetDescription>
                 </SheetHeader>
                 <nav className="mt-8 space-y-2">
                   {menuItems.map((item) => {
@@ -394,7 +478,8 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
               Logout?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to logout? You'll need to log in again to access your wallet.
+              Are you sure you want to logout? You'll need to log in again to
+              access your wallet.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -413,7 +498,10 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
       </AlertDialog>
 
       {/* Remove Account Confirmation Dialog */}
-      <AlertDialog open={showRemoveAccountDialog} onOpenChange={setShowRemoveAccountDialog}>
+      <AlertDialog
+        open={showRemoveAccountDialog}
+        onOpenChange={setShowRemoveAccountDialog}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
@@ -421,13 +509,18 @@ const WalletHeader = ({ selectedAccount, loggedInUser, onLoginSuccess, activeTab
               Remove Account?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove @{accountToRemove} from the app? You'll need to log in again to use this account.
+              Are you sure you want to remove @{accountToRemove} from the app?
+              You'll need to log in again to use this account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setAccountToRemove(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setAccountToRemove(null)}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => accountToRemove && handleRemoveAccount(accountToRemove)}
+              onClick={() =>
+                accountToRemove && handleRemoveAccount(accountToRemove)
+              }
               className="bg-red-600 hover:bg-red-700"
             >
               Remove

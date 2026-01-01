@@ -1,42 +1,65 @@
-
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { steemApi } from '@/services/steemApi';
 
 export const useMarketData = () => {
-  const { data: marketData, isLoading, error } = useQuery({
-    queryKey: ['simplifiedMarketData'],
-    queryFn: () => steemApi.getSimplifiedMarketData(),
-    refetchInterval: 5000,
-    staleTime: 5000,
-  });
+  const [orderBook, setOrderBook] = useState<any>(null);
+  const [ticker, setTicker] = useState<any>(null);
+  const [volume, setVolume] = useState<any>(null);
+  const [tradeHistory, setTradeHistory] = useState<any[]>([]);
+  const [hourlyHistory, setHourlyHistory] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
 
-  const { data: hourlyHistory } = useQuery({
-    queryKey: ['hourlyMarketHistory'],
-    queryFn: () => steemApi.getHourlyMarketHistory(),
-    refetchInterval: 60000,
-    staleTime: 30000,
-  });
+  const fetchMarketData = async () => {
+    try {
+      // Fetch all required data
+      const [marketData, hourly] = await Promise.all([
+        steemApi.getSimplifiedMarketData(),
+        steemApi.getHourlyMarketHistory()
+      ]);
 
-  const { data: dailyHistory } = useQuery({
-    queryKey: ['dailyMarketHistory'],  
-    queryFn: () => steemApi.getDailyMarketHistory(),
-    refetchInterval: 300000,
-    staleTime: 120000,
-  });
+      setOrderBook(marketData.orderBook);
+      setTicker(marketData.ticker);
+      setVolume(marketData.volume);
+      setTradeHistory(marketData.recentTrades);
+      setHourlyHistory(hourly);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching market data:', err);
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  console.log('Market data hook result:', { marketData, hourlyHistory, dailyHistory, isLoading, error });
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadData = async () => {
+      if (!isMounted) return;
+      await fetchMarketData();
+    };
 
-  return {
-    orderBook: marketData?.orderBook,
-    ticker: marketData?.ticker,
-    volume: marketData?.volume ? {
-      steem_volume: marketData.volume.steem_volume,
-      sbd_volume: marketData.volume.sbd_volume
-    } : null,
-    tradeHistory: marketData?.recentTrades || [],
-    hourlyHistory: hourlyHistory || [],
-    dailyHistory: dailyHistory || [],
-    isLoading,
-    error
+    loadData();
+    
+    // Refresh every 30 seconds for live feel
+    const interval = setInterval(() => {
+      if (isMounted) fetchMarketData();
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  return { 
+    orderBook, 
+    ticker, 
+    volume, 
+    tradeHistory, 
+    hourlyHistory, 
+    isLoading, 
+    error 
   };
 };

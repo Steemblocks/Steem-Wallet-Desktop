@@ -122,6 +122,7 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
       toast({
         title: "Route Removed",
         description: `Withdraw route to @${toAccount} has been removed.`,
+        variant: "success",
       });
 
       // Reload routes after removal
@@ -129,7 +130,7 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
     } catch (error: any) {
       const isDuplicate = error?.message?.includes('duplicate');
       if (isDuplicate) {
-        toast({ title: "Route Already Removed", description: "This route was already removed." });
+        toast({ title: "Route Already Removed", description: "This route was already removed.", variant: "success" });
         setTimeout(() => loadWithdrawRoutes(), 1500);
       } else {
         toast({

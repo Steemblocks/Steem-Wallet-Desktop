@@ -95,6 +95,7 @@ const DelegationConfirmDialog = ({
       toast({
         title: "Delegation Successful",
         description: `Delegated ${amount} SP to @${delegatee}`,
+        variant: "success",
       });
       
       // Short delay to show success state
@@ -113,6 +114,7 @@ const DelegationConfirmDialog = ({
         toast({
           title: "Transaction Already Processed",
           description: "This delegation was already submitted successfully.",
+          variant: "success",
         });
         onSuccess();
         onClose();

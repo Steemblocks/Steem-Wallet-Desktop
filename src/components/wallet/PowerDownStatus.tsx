@@ -134,6 +134,7 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
       toast({
         title: "Power Down Cancelled",
         description: "Your power down has been successfully cancelled",
+        variant: "success",
       });
       onUpdate?.();
       setIsCancelling(false);
@@ -145,6 +146,7 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
         toast({
           title: "Power Down Already Cancelled",
           description: "This cancellation was already processed.",
+          variant: "success",
         });
         onUpdate?.();
         setIsCancelling(false);

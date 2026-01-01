@@ -20,6 +20,7 @@ const SavingsOperations = () => {
     toast({
       title: "Transfer to Savings",
       description: `Moving ${transferAmount} ${transferCurrency} to savings`,
+      variant: "success",
     });
     setTransferAmount("");
   };
@@ -29,6 +30,7 @@ const SavingsOperations = () => {
     toast({
       title: "Withdrawal Initiated",
       description: `Withdrawing ${withdrawAmount} ${withdrawCurrency} from savings (3-day delay)`,
+      variant: "success",
     });
     setWithdrawAmount("");
   };

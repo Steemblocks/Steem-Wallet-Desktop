@@ -1,4 +1,4 @@
-import { API_CONFIG, getAllEndpoints } from '@/config/api';
+import { API_CONFIG, getAllEndpoints, getPrimaryEndpoint } from '@/config/api';
 
 export interface SteemAccount {
   id: number;
@@ -271,12 +271,24 @@ export class SteemApiService {
   }
 
   private async makeRequest(method: string, params: any): Promise<any> {
-    const startingEndpoint = this.currentEndpoint;
     let lastError: Error | null = null;
+    
+    // Get the user's selected endpoint first
+    const primaryEndpoint = getPrimaryEndpoint();
+    
+    // Build endpoints list: user's selected node first, then fallbacks
+    const endpointsToTry = [primaryEndpoint];
+    
+    // Add fallback endpoints (excluding the primary to avoid duplicates)
+    for (const endpoint of this.endpoints) {
+      if (endpoint !== primaryEndpoint) {
+        endpointsToTry.push(endpoint);
+      }
+    }
 
-    // Try each endpoint iteratively (prevents stack overflow from recursion)
-    for (let attempt = 0; attempt < this.endpoints.length; attempt++) {
-      const endpoint = this.endpoints[this.currentEndpoint];
+    // Try each endpoint
+    for (let attempt = 0; attempt < endpointsToTry.length; attempt++) {
+      const endpoint = endpointsToTry[attempt];
       
       try {
         const controller = new AbortController();
@@ -312,9 +324,6 @@ export class SteemApiService {
       } catch (error) {
         lastError = error as Error;
         console.error(`Error with endpoint ${endpoint}:`, error);
-        
-        // Move to next endpoint for retry
-        this.currentEndpoint = (this.currentEndpoint + 1) % this.endpoints.length;
       }
     }
 
@@ -457,10 +466,7 @@ export class SteemApiService {
         end: this.formatDateForSteemApi(end)
       });
 
-      console.log('Hourly market history API response:', response);
-
       if (!response || !response.buckets) {
-        console.log('No buckets in response:', response);
         return [];
       }
 
@@ -509,10 +515,7 @@ export class SteemApiService {
         end: this.formatDateForSteemApi(end)
       });
 
-      console.log('Daily market history API response:', response);
-
       if (!response || !response.buckets) {
-        console.log('No buckets in daily response:', response);
         return [];
       }
 
@@ -555,11 +558,8 @@ export class SteemApiService {
   }
 
   async getRecentTradesFormatted(): Promise<any[]> {
-    console.log('Fetching recent trades...');
-    
     try {
       const response = await this.getRecentTrades(50);
-      console.log('Recent trades response:', response);
       
       return response.trades.map(entry => this.formatTradeHistoryEntry(entry));
     } catch (error) {
@@ -608,8 +608,6 @@ export class SteemApiService {
         order_direction: "ascending",
         status: "all"
       });
-
-      console.log('User proposal votes response:', response);
 
       if (!response || !response.proposal_votes) {
         return [];
@@ -661,8 +659,6 @@ export class SteemApiService {
         this.getRecentTradesFormatted()
       ]);
 
-      console.log('Market data fetched successfully:', { orderBook, ticker, tradesCount: recentTrades.length });
-
       return {
         orderBook,
         ticker,
@@ -686,8 +682,6 @@ export class SteemApiService {
         limit: 100,
         order: "by_withdraw_route"
       });
-
-      console.log('Withdraw vesting routes response:', response);
 
       if (!response || !response.routes) {
         return [];

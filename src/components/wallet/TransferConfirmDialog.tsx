@@ -225,6 +225,7 @@ const TransferConfirmDialog = ({
       toast({
         title: "Transaction Confirmed",
         description: `Your ${getOperationTitle(operationType)} transaction was successful!`,
+        variant: "success",
       });
       
       // Mark transaction as complete before closing
@@ -278,7 +279,7 @@ const TransferConfirmDialog = ({
         toast({
           title: "Transaction Already Processed",
           description: errorMessage,
-          variant: "default",
+          variant: "success",
         });
         setTransactionComplete(true);
         onClose();

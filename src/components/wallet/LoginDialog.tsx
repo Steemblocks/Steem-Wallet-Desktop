@@ -189,6 +189,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
         toast({
           title: "Login Successful",
           description: `Logged in as @${username} with ${keyTypeLabels[keyType]} Key`,
+          variant: "success",
         });
         
         onLoginSuccess(username, 'privatekey');
@@ -246,6 +247,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
           toast({
             title: "Login Successful",
             description: `Logged in as @${username} with Master Password. All keys imported.`,
+            variant: "success",
           });
           
           onLoginSuccess(username, 'masterpassword');
@@ -289,6 +291,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
     toast({
       title: "Logged Out",
       description: "Successfully logged out from Steem",
+      variant: "success",
     });
     
     // Reload the page to refresh the state

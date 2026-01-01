@@ -122,6 +122,7 @@ const WithdrawRouteOperations = () => {
         toast({
           title: "Route Already Set",
           description: "This withdraw route was already configured.",
+          variant: "success",
         });
         setRecipient("");
         setPercentage(0);
@@ -172,6 +173,7 @@ const WithdrawRouteOperations = () => {
         toast({
           title: "Route Already Removed",
           description: "This withdraw route was already removed.",
+          variant: "success",
         });
         setTimeout(() => loadWithdrawRoutes(), 2000);
       } else {
@@ -213,11 +215,13 @@ const WithdrawRouteOperations = () => {
         toast({
           title: "Route Removed",
           description: `Withdraw route to @${operation.to_account} has been removed`,
+          variant: "success",
         });
       } else {
         toast({
           title: "Withdraw Route Set",
           description: `${(operation.percent / 100).toFixed(1)}% of power down will go to @${operation.to_account}${operation.auto_vest ? ' (auto-vested)' : ''}`,
+          variant: "success",
         });
       }
       
@@ -245,11 +249,13 @@ const WithdrawRouteOperations = () => {
           toast({
             title: "Route Already Removed",
             description: `Withdraw route to @${operation.to_account} was already removed.`,
+            variant: "success",
           });
         } else {
           toast({
             title: "Route Already Set",
             description: `Withdraw route was already configured.`,
+            variant: "success",
           });
         }
         setRecipient("");

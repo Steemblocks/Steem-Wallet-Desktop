@@ -98,9 +98,6 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       await storage.setItem('steem_memo_key', memoKey.toString());
       await storage.setItem('steem_login_method', 'masterpassword');
 
-      // Update local state
-      setLoginMethod('masterpassword');
-
       // Generate the revealed keys structure
       const privateKeys = steemOperations.generateKeys(loggedInUser, importPassword, ['owner', 'active', 'posting', 'memo']);
       setRevealedPrivateKeys(privateKeys);
@@ -109,6 +106,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       toast({
         title: "Keys Imported Successfully",
         description: "All 4 keys (owner, active, posting, memo) have been imported and are now revealed.",
+        variant: "success",
       });
 
       // Close dialog and reset
@@ -177,6 +175,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       toast({
         title: "Private Keys Revealed",
         description: "Handle with extreme care! Never share your private keys.",
+        variant: "success",
       });
     } catch (error: any) {
       toast({
@@ -235,6 +234,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       toast({
         title: "New Password Generated",
         description: "Please copy your new password and keys before confirming the change",
+        variant: "success",
       });
     } catch (error: any) {
       toast({
@@ -319,6 +319,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       toast({
         title: "Password Changed Successfully",
         description: "Your account password has been updated. Please save your new keys!",
+        variant: "success",
       });
 
       // Clear sensitive data
@@ -333,6 +334,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
         toast({
           title: "Password Already Changed",
           description: "Your password change was already submitted. Please save your new keys!",
+          variant: "success",
         });
         setPasswordData({ oldPassword: '', newPassword: '', confirmReady: false });
         setGeneratedKeys(null);
@@ -396,6 +398,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       toast({
         title: "Reset Account Updated",
         description: "Your recovery account has been set successfully",
+        variant: "success",
       });
 
       setResetAccountData({ currentResetAccount: '', newResetAccount: '' });
@@ -409,6 +412,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
         toast({
           title: "Reset Account Already Updated",
           description: "Your recovery account change was already submitted.",
+          variant: "success",
         });
         setResetAccountData({ currentResetAccount: '', newResetAccount: '' });
         setIsLoading(false);
@@ -436,6 +440,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       toast({
         title: "Copied to Clipboard",
         description: `${keyType} copied successfully`,
+        variant: "success",
       });
     } catch (error) {
       toast({
