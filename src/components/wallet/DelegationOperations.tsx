@@ -16,6 +16,7 @@ import { SecureStorageFactory } from '@/services/secureStorage';
 import DelegationEditDialog from "./DelegationEditDialog";
 import DelegationConfirmDialog from "./DelegationConfirmDialog";
 import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
+import { useWalletData } from "@/contexts/WalletDataContext";
 
 const DelegationOperations = () => {
   const { username: urlUsername } = useParams();
@@ -28,6 +29,7 @@ const DelegationOperations = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingVestingShares, setPendingVestingShares] = useState("");
   const { toast } = useToast();
+  const { refreshAll: refreshWalletData } = useWalletData();
 
   // Load usernames from secure storage
   useEffect(() => {
@@ -116,6 +118,10 @@ const DelegationOperations = () => {
     setDelegateAmount("");
     setPendingVestingShares("");
     refetchAll();
+    // Also refresh wallet data to update balance cards
+    setTimeout(() => {
+      refreshWalletData();
+    }, 2000);
   };
 
   if (error) {

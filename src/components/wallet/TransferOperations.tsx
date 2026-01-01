@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SecureStorageFactory } from '@/services/secureStorage';
 import TransferConfirmDialog from "./TransferConfirmDialog";
 import { useQueryClient } from "@tanstack/react-query";
+import { useWalletData } from "@/contexts/WalletDataContext";
 
 export type OperationType = 'transfer' | 'powerup' | 'powerdown' | 'savings' | 'withdraw_savings';
 
@@ -25,6 +26,7 @@ const TransferOperations = () => {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { refreshAll } = useWalletData();
 
   // Load login status from secure storage
   useEffect(() => {
@@ -78,11 +80,13 @@ const TransferOperations = () => {
       variant: "success",
     });
     
-    // Invalidate account history cache to show new transaction immediately
+    // Refresh all wallet data to show updated balances immediately
     // Small delay to allow blockchain to process the transaction
-    setTimeout(() => {
+    setTimeout(async () => {
       queryClient.invalidateQueries({ queryKey: ['accountHistory'] });
       queryClient.invalidateQueries({ queryKey: ['steemAccount'] });
+      // Also refresh the WalletDataContext to update balance cards
+      await refreshAll();
     }, 2000);
   };
 

@@ -107,58 +107,6 @@ const PowerBar = memo(({
           </div>
         </div>
       </div>
-      
-      {/* CSS Keyframes */}
-      <style>{`
-        @keyframes bubble {
-          0% {
-            transform: translateY(0) scale(1);
-            opacity: 0.7;
-          }
-          50% {
-            opacity: 0.9;
-          }
-          100% {
-            transform: translateY(-10px) scale(0.5);
-            opacity: 0;
-          }
-        }
-        
-        @keyframes scanBeam {
-          0% {
-            left: -20%;
-            opacity: 0;
-          }
-          20% {
-            opacity: 1;
-          }
-          80% {
-            opacity: 1;
-          }
-          100% {
-            left: 100%;
-            opacity: 0;
-          }
-        }
-        
-        @keyframes waveShine {
-          0% {
-            background-position: 200% 0;
-          }
-          100% {
-            background-position: -200% 0;
-          }
-        }
-        
-        @keyframes fullShine {
-          0%, 100% {
-            background-position: -100% -100%;
-          }
-          50% {
-            background-position: 200% 200%;
-          }
-        }
-      `}</style>
     </div>
   );
 });

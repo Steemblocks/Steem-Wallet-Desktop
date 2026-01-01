@@ -17,6 +17,9 @@ const AppLoadingScreen = memo(({ progress, stage }: AppLoadingScreenProps) => {
               src="/steem-logo.png" 
               alt="Steem Wallet Logo" 
               className="w-24 h-24 object-contain drop-shadow-2xl"
+              width={96}
+              height={96}
+              style={{ width: 96, height: 96, maxWidth: 96, maxHeight: 96 }}
             />
           </div>
           {/* Pulsing ring animation */}
@@ -77,17 +80,6 @@ const AppLoadingScreen = memo(({ progress, stage }: AppLoadingScreenProps) => {
           }}
         />
       </div>
-
-      {/* CSS for shimmer animation */}
-      <style>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
     </div>
   );
 });

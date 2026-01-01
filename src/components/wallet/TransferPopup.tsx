@@ -15,6 +15,7 @@ import { steemOperations } from "@/services/steemOperations";
 import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
 import { useToast } from "@/hooks/use-toast";
 import { SecureStorageFactory } from "@/services/secureStorage";
+import { useWalletData } from "@/contexts/WalletDataContext";
 import * as dsteem from 'dsteem';
 
 export type OperationType = 'transfer' | 'powerup' | 'powerdown' | 'savings' | 'withdraw_savings' | 'withdraw_route';
@@ -45,6 +46,7 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
   const { data: account } = useSteemAccount(username);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { refreshAll } = useWalletData();
 
   // Load wallet data and expiring delegations when account changes
   useEffect(() => {
@@ -181,11 +183,14 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
     setShowConfirm(false);
     onClose();
     
-    // Invalidate account history cache to show new transaction immediately
+    // Refresh all wallet data to show updated balances immediately
     // Small delay to allow blockchain to process the transaction
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Invalidate React Query caches
       queryClient.invalidateQueries({ queryKey: ['accountHistory'] });
       queryClient.invalidateQueries({ queryKey: ['steemAccount'] });
+      // Also refresh the WalletDataContext to update balance cards
+      await refreshAll();
     }, 2000);
   };
 

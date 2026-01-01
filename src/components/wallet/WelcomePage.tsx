@@ -55,7 +55,14 @@ const WelcomePage = ({ onLoginSuccess }: WelcomePageProps) => {
         {/* Logo & Title */}
         <div className="mb-8">
           <div className="inline-flex items-center justify-center mb-6">
-            <img src="/steem-logo.png" alt="Steem" className="w-20 h-20" />
+            <img 
+              src="/steem-logo.png" 
+              alt="Steem" 
+              className="w-20 h-20"
+              width={80}
+              height={80}
+              style={{ width: 80, height: 80, maxWidth: 80, maxHeight: 80 }}
+            />
           </div>
           
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
