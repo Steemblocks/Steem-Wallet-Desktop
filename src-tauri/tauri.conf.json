@@ -1,6 +1,6 @@
 {
   "productName": "Steem Wallet Desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.steemwallet.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc://; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: wss: http://ipc.localhost; img-src 'self' https:; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:"
+      "csp": null
     }
   },
   "bundle": {
@@ -33,6 +33,12 @@
       "icons/icon.ico",
       "icons/icon.icns",
       "icons/icon.png"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "nsis-hooks.nsh"
+      }
+    }
   }
 }

@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 interface DelegationConfirmDialogProps {
   isOpen: boolean;
@@ -65,9 +66,9 @@ const DelegationConfirmDialog = ({
     setIsProcessing(true);
 
     try {
-      const storage = SecureStorageFactory.getInstance();
-      const activeKey = await storage.getItem('steem_active_key');
-      const ownerKey = await storage.getItem('steem_owner_key');
+      // Get decrypted keys from secure storage
+      const activeKey = await getDecryptedKey(delegator, 'active');
+      const ownerKey = await getDecryptedKey(delegator, 'owner');
       
       let privateKeyString = activeKey || ownerKey;
       

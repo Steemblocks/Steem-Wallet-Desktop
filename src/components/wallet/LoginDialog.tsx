@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import * as dsteem from 'dsteem';
 import { SecureStorageFactory } from "@/services/secureStorage";
 import { accountManager } from "@/services/accountManager";
+import { encryptedKeyStorage } from "@/services/encryptedKeyStorage";
 import { sanitizeUsername, isValidSteemUsername, loginRateLimiter } from "@/utils/security";
 import { steemApi } from "@/services/steemApi";
 
@@ -92,7 +93,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
     if (!credential) {
       toast({
         title: "Missing Credential",
-        description: "Please provide your private key or master password",
+        description: "Please provide your master password",
         variant: "destructive",
       });
       return;
@@ -106,7 +107,12 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
     try {
       const storage = SecureStorageFactory.getInstance();
       
-      // Check if it's a private key (starts with '5')
+      // Check if app lock password is cached, if not throw error
+      if (!encryptedKeyStorage.isPasswordCached()) {
+        throw new Error('Session expired. Please lock and unlock the app to continue.');
+      }
+      
+      // Check if it's a private key (starts with '5') - still support but not advertised
       if (credential.startsWith('5')) {
         // Validate private key format
         if (credential.length < 50) {
@@ -262,7 +268,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
       setCredential("");
     } catch (error) {
       console.error('Login error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Invalid credentials. Please check your private key or master password.';
+      const errorMessage = error instanceof Error ? error.message : 'Invalid credentials. Please check your master password.';
       toast({
         title: "Login Failed",
         description: errorMessage,
@@ -364,7 +370,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
 
             <div className="space-y-2">
               <Label htmlFor="credential" className="text-sm font-medium text-slate-300">
-                Private Key or Master Password
+                Master Password
               </Label>
               <div className="relative">
                 <Input
@@ -372,7 +378,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
                   type={showCredential ? "text" : "password"}
                   value={credential}
                   onChange={(e) => setCredential(e.target.value)}
-                  placeholder="5K... (private key) or master password"
+                  placeholder="Enter your master password"
                   className="pr-10"
                 />
                 <Button
@@ -390,7 +396,7 @@ const LoginDialog = ({ children, onLoginSuccess, isOpen: controlledIsOpen, onOpe
                 </Button>
               </div>
               <p className="text-xs text-slate-400">
-                Enter your private active key (5K...) or master password. The system will automatically detect which one you're using.
+                Enter your master password. The system will derive all necessary keys automatically.
               </p>
             </div>
 

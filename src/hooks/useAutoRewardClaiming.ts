@@ -1,10 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { SecureStorageFactory } from '@/services/secureStorage';
 import { steemOperations } from '@/services/steemOperations';
 import { steemApi } from '@/services/steemApi';
 import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
 import * as dsteem from 'dsteem';
 import { useToast } from '@/hooks/use-toast';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 // Check for rewards every 5 minutes
 const CHECK_INTERVAL = 5 * 60 * 1000;
@@ -59,11 +59,10 @@ export const useAutoRewardClaiming = ({
       isClaimingRef.current = true;
       lastClaimAttemptRef.current = now;
 
-      // Get private key
-      const storage = SecureStorageFactory.getInstance();
-      const postingKey = await storage.getItem('steem_posting_key');
-      const activeKey = await storage.getItem('steem_active_key');
-      const ownerKey = await storage.getItem('steem_owner_key');
+      // Get private key (decrypted from secure storage)
+      const postingKey = await getDecryptedKey(username, 'posting');
+      const activeKey = await getDecryptedKey(username, 'active');
+      const ownerKey = await getDecryptedKey(username, 'owner');
 
       const privateKeyString = postingKey || activeKey || ownerKey;
 

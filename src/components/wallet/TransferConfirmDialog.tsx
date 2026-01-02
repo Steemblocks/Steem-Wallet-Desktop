@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, TrendingUp, PiggyBank, ArrowDown, Route, Loader2 } from "lucide-react";
@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 import { OperationType } from './TransferPopup';
 
 interface TransferConfirmDialogProps {
@@ -76,16 +77,27 @@ const TransferConfirmDialog = ({
         const storage = SecureStorageFactory.getInstance();
         const user = await storage.getItem('steem_username');
         const method = await storage.getItem('steem_login_method');
-        const key = await storage.getItem('steem_active_key');
+        // Note: We no longer load the key here - it's decrypted on-demand when needed
         setUsername(user);
         setLoginMethod(method);
-        setActiveKey(key);
+        setActiveKey(null); // Will be decrypted when transaction is confirmed
       } catch (error) {
         console.error('Error loading credentials from storage:', error);
       }
     };
     loadCredentials();
   }, [isOpen]);
+
+  // Get decrypted key on-demand
+  const getActiveKey = useCallback(async (): Promise<string | null> => {
+    try {
+      const key = await getDecryptedKey('active');
+      return key;
+    } catch (error) {
+      console.error('Error getting active key:', error);
+      return null;
+    }
+  }, []);
 
   const getOperationIcon = (type: OperationType) => {
     switch (type) {
@@ -142,11 +154,12 @@ const TransferConfirmDialog = ({
   };
 
   const handlePrivateKeyOperation = async () => {
-    const privateKeyString = activeKey;
+    // Get decrypted key on-demand
+    const privateKeyString = await getActiveKey();
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
-        description: "Active key required for this operation",
+        description: "Active key required for this operation. Please try unlocking the app again.",
         variant: "destructive",
       });
       setIsProcessing(false);

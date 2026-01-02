@@ -12,6 +12,8 @@ import { steemOperations } from '@/services/steemOperations';
 // Import your utility functions
 import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
+import { useProposals, useUserProposalVotes, useInvalidateProposals } from '@/hooks/useProposals';
 
 /**
  * Formats a large number into a human-readable string with a suffix (K, M, B).
@@ -69,15 +71,44 @@ const VoteDisplay = ({ totalVotes, steemPerMvests }: { totalVotes: string, steem
 
 const GovernanceOperations = () => {
   const { toast } = useToast();
-  const [proposals, setProposals] = useState<SteemProposal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [returnProposal, setReturnProposal] = useState<SteemProposal | null>(null);
+  
+  // Use cached proposal hooks
+  const { data: proposals = [], isLoading: proposalsLoading, error: proposalsError } = useProposals();
   const [steemPerMvests, setSteemPerMvests] = useState<number | null>(null);
-  const [userVotedProposals, setUserVotedProposals] = useState<number[]>([]);
   const [processingProposalId, setProcessingProposalId] = useState<number | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
+  
+  // User votes from cached hook + local optimistic state for UI updates
+  const { data: serverUserVotes = [] } = useUserProposalVotes(username);
+  const { invalidateUserVotes } = useInvalidateProposals();
+  const [localVoteChanges, setLocalVoteChanges] = useState<{added: number[], removed: number[]}>({added: [], removed: []});
+  
+  // Combine server data with local optimistic changes
+  const userVotedProposals = [
+    ...serverUserVotes.filter(id => !localVoteChanges.removed.includes(id)),
+    ...localVoteChanges.added.filter(id => !serverUserVotes.includes(id))
+  ];
+  
+  // Helper to update local votes optimistically (for UI feedback)
+  const setUserVotedProposals = (updater: (prev: number[]) => number[]) => {
+    const currentVotes = userVotedProposals;
+    const newVotes = updater(currentVotes);
+    
+    // Determine what was added/removed
+    const added = newVotes.filter(id => !currentVotes.includes(id));
+    const removed = currentVotes.filter(id => !newVotes.includes(id));
+    
+    setLocalVoteChanges(prev => ({
+      added: [...prev.added.filter(id => !removed.includes(id)), ...added],
+      removed: [...prev.removed.filter(id => !added.includes(id)), ...removed]
+    }));
+  };
+  
+  // Derived state
+  const returnProposal = proposals.find((p: SteemProposal) => p.proposal_id === 0) || null;
+  const loading = proposalsLoading;
+  const error = proposalsError ? 'Failed to fetch governance data' : null;
   
   // CRITICAL: Track submitted proposals to prevent duplicate transactions
   const submittedProposalsRef = useRef<Set<string>>(new Set());
@@ -97,37 +128,18 @@ const GovernanceOperations = () => {
     loadUsername();
   }, []);
 
+  // Fetch steemPerMvests conversion rate
   useEffect(() => {
-    const fetchAllData = async () => {
+    const fetchSteemPerMvests = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch proposals and steem per mvests
-        const [proposalData, spm] = await Promise.all([
-          steemApi.getProposalsByVotes(),
-          getSteemPerMvests()
-        ]);
-        
-        setProposals(proposalData);
+        const spm = await getSteemPerMvests();
         setSteemPerMvests(spm);
-        const returnProp = proposalData.find(p => p.proposal_id === 0);
-        setReturnProposal(returnProp || null);
-
-        // Fetch user votes if logged in
-        if (username) {
-          const userVotes = await steemApi.getUserProposalVotes(username);
-          setUserVotedProposals(userVotes);
-        }
       } catch (err) {
-        console.error('Error fetching governance data:', err);
-        setError('Failed to fetch governance data');
-      } finally {
-        setLoading(false);
+        console.error('Error fetching steem per mvests:', err);
       }
     };
-    fetchAllData();
-  }, [username]);
+    fetchSteemPerMvests();
+  }, []);
 
   const handleVoteProposal = async (proposalId: number, approve: boolean) => {
     if (!isLoggedIn) {
@@ -188,8 +200,8 @@ const GovernanceOperations = () => {
   };
 
   const handlePrivateKeyOperation = async (username: string, operation: any, action: string, voteKey: string) => {
-    const storage = SecureStorageFactory.getInstance();
-    const privateKeyString = await storage.getItem('steem_active_key');
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(username, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",

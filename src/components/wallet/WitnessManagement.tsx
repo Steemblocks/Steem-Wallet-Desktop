@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
-import { steemApi } from '@/services/steemApi';
+import { useUserCreatedProposals, useInvalidateProposals } from '@/hooks/useProposals';
 
 interface WitnessManagementProps {
   loggedInUser: string | null;
@@ -17,8 +17,10 @@ interface WitnessManagementProps {
 const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState('');
-  const [userProposals, setUserProposals] = useState<any[]>([]);
-  const [hasProposals, setHasProposals] = useState(false);
+  
+  // Use cached proposal hook instead of local state
+  const { userProposals, hasProposals, refetch: refetchProposals } = useUserCreatedProposals(loggedInUser);
+  const { invalidateProposals } = useInvalidateProposals();
   
   // CRITICAL: Track transaction submissions to prevent duplicate transactions
   const createProposalSubmittedRef = useRef(false);
@@ -63,25 +65,6 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
     sbdInterestRate: '1000',
     feeAmount: '0'
   });
-
-  // Check if user has existing proposals
-  useEffect(() => {
-    const checkUserProposals = async () => {
-      if (!loggedInUser) return;
-      
-      try {
-        // Get all proposals and filter by creator
-        const allProposals = await steemApi.getProposalsByVotes();
-        const userCreatedProposals = allProposals.filter(p => p.creator === loggedInUser);
-        setUserProposals(userCreatedProposals);
-        setHasProposals(userCreatedProposals.length > 0);
-      } catch (error) {
-        console.error('Error checking user proposals:', error);
-      }
-    };
-
-    checkUserProposals();
-  }, [loggedInUser]);
 
   const handleCreateProposal = async () => {
     if (!loggedInUser || !password) {
@@ -138,11 +121,9 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       });
       setPassword('');
       
-      // Refresh proposals
-      const allProposals = await steemApi.getProposalsByVotes();
-      const userCreatedProposals = allProposals.filter(p => p.creator === loggedInUser);
-      setUserProposals(userCreatedProposals);
-      setHasProposals(userCreatedProposals.length > 0);
+      // Invalidate and refetch proposals using cached hook
+      invalidateProposals();
+      await refetchProposals();
       setIsLoading(false);
       createProposalSubmittedRef.current = false;
     } catch (error: any) {
@@ -216,11 +197,9 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       });
       setPassword('');
       
-      // Refresh proposals
-      const allProposals = await steemApi.getProposalsByVotes();
-      const userCreatedProposals = allProposals.filter(p => p.creator === loggedInUser);
-      setUserProposals(userCreatedProposals);
-      setHasProposals(userCreatedProposals.length > 0);
+      // Invalidate and refetch proposals using cached hook
+      invalidateProposals();
+      await refetchProposals();
       setIsLoading(false);
       removeProposalSubmittedRef.current = false;
     } catch (error: any) {

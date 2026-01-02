@@ -15,6 +15,7 @@ import { steemOperations } from '@/services/steemOperations';
 import { useQueryClient } from '@tanstack/react-query';
 import * as dsteem from 'dsteem';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 interface WitnessOperationsProps {
   loggedInUser?: string | null;
@@ -82,8 +83,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
   };
 
   const handlePrivateKeyWitnessVote = async (account: string, witness: string, approve: boolean) => {
-    const storage = SecureStorageFactory.getInstance();
-    const privateKeyString = await storage.getItem('steem_active_key');
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(account, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
@@ -188,8 +189,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
   };
 
   const handlePrivateKeyProxy = async (account: string, proxy: string) => {
-    const storage = SecureStorageFactory.getInstance();
-    const privateKeyString = await storage.getItem('steem_active_key');
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(account, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",

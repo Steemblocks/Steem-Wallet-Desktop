@@ -8,6 +8,7 @@ import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { steemApi, SavingsWithdrawal } from '@/services/steemApi';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 interface SavingsWithdrawStatusProps {
   account: any;
@@ -17,7 +18,6 @@ interface SavingsWithdrawStatusProps {
 const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps) => {
   const [isCancelling, setIsCancelling] = useState<number | null>(null);
   const [username, setUsername] = useState<string | null>(null);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [withdrawals, setWithdrawals] = useState<SavingsWithdrawal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -33,9 +33,7 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
       try {
         const storage = SecureStorageFactory.getInstance();
         const user = await storage.getItem('steem_username');
-        const key = await storage.getItem('steem_active_key');
         setUsername(user);
-        setActiveKey(key);
       } catch (error) {
         console.error('Error loading credentials from storage:', error);
       }
@@ -127,7 +125,8 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
   };
 
   const handlePrivateKeyCancel = async (requestId: number) => {
-    const privateKeyString = activeKey;
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(username!, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",

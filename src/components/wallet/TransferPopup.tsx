@@ -15,6 +15,7 @@ import { steemOperations } from "@/services/steemOperations";
 import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
 import { useToast } from "@/hooks/use-toast";
 import { SecureStorageFactory } from "@/services/secureStorage";
+import { getDecryptedKey } from "@/hooks/useSecureKeys";
 import { useWalletData } from "@/contexts/WalletDataContext";
 import * as dsteem from 'dsteem';
 
@@ -100,8 +101,8 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
     setIsRemovingRoute(toAccount);
 
     try {
-      const storage = SecureStorageFactory.getInstance();
-      const activeKey = await storage.getItem('steem_active_key');
+      // Get decrypted key from secure storage
+      const activeKey = await getDecryptedKey(username, 'active');
       
       if (!activeKey) {
         toast({

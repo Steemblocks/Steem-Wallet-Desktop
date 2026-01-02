@@ -59,8 +59,10 @@ const WalletOverview = ({
   const { data: priceData, isLoading: isPriceLoading } = useQuery({
     queryKey: ['coingecko-prices'],
     queryFn: () => priceApi.getMarketData(),
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 10000, // Consider stale after 10 seconds
+    refetchInterval: 60000, // Refresh every 60 seconds (prices don't change that fast)
+    staleTime: 30000, // Consider stale after 30 seconds
+    gcTime: 300000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false,
   });
 
   // Default market data for fallback

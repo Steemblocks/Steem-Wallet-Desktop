@@ -15,6 +15,7 @@ import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
 import { SecureStorageFactory } from "@/services/secureStorage";
 import { getPrimaryEndpoint } from "@/config/api";
 import { steemWebSocket, GlobalPropsData, PowerMeterData as WsPowerMeterData } from "@/services/steemWebSocket";
+import { dataCache } from "@/services/dataCache";
 
 // ===== Types =====
 export interface WalletData {
@@ -659,7 +660,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
     loadSavedUser();
   }, []);
 
-  // Main data fetching function
+  // Main data fetching function with caching
   const fetchAllData = useCallback(
     async (username: string, isRefresh = false) => {
       if (!username) {
@@ -671,6 +672,25 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         if (!isRefresh) {
           setIsInitialLoading(true);
           setLoadingProgress(0);
+          
+          // Try to load cached data for immediate display while fetching fresh data
+          try {
+            const cachedData = await dataCache.getStaleDataForQuickLoad(username);
+            if (cachedData.walletData || cachedData.witnesses || cachedData.delegations) {
+              console.log('[WalletDataContext] Using cached data for quick display');
+              setData(prev => ({
+                ...prev,
+                walletData: cachedData.walletData || prev.walletData,
+                witnesses: cachedData.witnesses || prev.witnesses,
+                outgoingDelegations: cachedData.delegations || prev.outgoingDelegations,
+                recentTransactions: cachedData.accountHistory || prev.recentTransactions,
+              }));
+              // Show faster initial progress
+              setLoadingProgress(20);
+            }
+          } catch (cacheError) {
+            console.warn('[WalletDataContext] Cache read error:', cacheError);
+          }
         } else {
           setIsRefreshing(true);
         }
@@ -678,7 +698,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
 
         // Stage 1: Fetch core data in parallel (30%)
         setLoadingStage("Fetching account data...");
-        setLoadingProgress(10);
+        setLoadingProgress(isRefresh ? 10 : 25);
 
         const [steemPerMvests, priceData, account] = await Promise.all([
           getSteemPerMvests(),
@@ -689,6 +709,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         if (!account) {
           throw new Error(`Account ${username} not found`);
         }
+        
+        // Cache price data
+        dataCache.cachePriceData(priceData).catch(console.warn);
 
         setLoadingProgress(30);
         setLoadingStage("Processing wallet data...");
@@ -699,6 +722,10 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
           priceData,
           steemPerMvests
         );
+        
+        // Cache wallet data
+        dataCache.cacheWalletData(username, walletData).catch(console.warn);
+        
         setLoadingProgress(40);
 
         // Stage 3: Fetch delegations and witnesses in parallel (60%)
@@ -721,6 +748,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
           (sum: number, d: any) => sum + parseFloat(d.steemPower),
           0
         );
+        
+        // Cache delegations
+        dataCache.cacheDelegations(username, outgoingDelegations).catch(console.warn);
 
         // Format witnesses
         const userWitnessVotes = account.witness_votes || [];
@@ -742,6 +772,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
             isDisabled: isDisabledByKey || hasInvalidVer,
           };
         });
+        
+        // Cache witnesses
+        dataCache.cacheWitnesses(witnesses).catch(console.warn);
 
         setLoadingProgress(70);
         setLoadingStage("Loading history & power data...");
@@ -767,6 +800,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
           .map((tx: any) => steemApi.formatTransaction(tx))
           .filter((tx: any) => !EXCLUDED_OPERATIONS.includes(tx.type))
           .reverse();
+        
+        // Cache account history
+        dataCache.cacheAccountHistory(username, recentTransactions).catch(console.warn);
 
         // Compile market data (empty until user visits market tab)
         const marketData: MarketDataState = {

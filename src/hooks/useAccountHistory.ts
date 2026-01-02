@@ -73,9 +73,9 @@ export const useAccountHistory = (account: string, limit: number = 100) => {
       }
     },
     enabled: !!account,
-    staleTime: 0, // Always consider data stale to ensure fresh fetches
-    gcTime: 0, // Don't cache (garbage collect immediately)
-    refetchInterval: 30000, // Auto-poll every 30 seconds for new transactions
+    staleTime: 30000, // Consider data stale after 30 seconds
+    gcTime: 120000, // Keep in cache for 2 minutes
+    refetchInterval: 60000, // Auto-poll every 60 seconds for new transactions
     refetchIntervalInBackground: false, // Only poll when tab is active
   });
 

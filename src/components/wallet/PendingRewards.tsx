@@ -9,6 +9,7 @@ import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 import { SteemAccount } from '@/services/steemApi';
 
 interface PendingRewardsProps {
@@ -109,11 +110,10 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
   };
 
   const handlePrivateKeyClaim = async () => {
-    // Try different keys in order: posting, active, owner
-    const storage = SecureStorageFactory.getInstance();
-    const postingKey = await storage.getItem('steem_posting_key');
-    const activeKey = await storage.getItem('steem_active_key');
-    const ownerKey = await storage.getItem('steem_owner_key');
+    // Try different keys in order: posting, active, owner (decrypted from secure storage)
+    const postingKey = await getDecryptedKey(username!, 'posting');
+    const activeKey = await getDecryptedKey(username!, 'active');
+    const ownerKey = await getDecryptedKey(username!, 'owner');
 
     let privateKeyString = postingKey || activeKey || ownerKey;
     

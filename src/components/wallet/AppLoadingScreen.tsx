@@ -10,16 +10,24 @@ const AppLoadingScreen = memo(({ progress, stage }: AppLoadingScreenProps) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
       <div className="flex flex-col items-center gap-8 p-8">
-        {/* Logo/Brand */}
+        {/* Logo/Brand - Same size as initial loader (64px) for seamless transition */}
         <div className="relative">
           <div className="flex items-center justify-center">
             <img 
               src="/steem-logo.png" 
               alt="Steem Wallet Logo" 
-              className="w-24 h-24 object-contain drop-shadow-2xl"
-              width={96}
-              height={96}
-              style={{ width: 96, height: 96, maxWidth: 96, maxHeight: 96 }}
+              className="object-contain drop-shadow-2xl"
+              width={64}
+              height={64}
+              style={{ 
+                width: 64, 
+                height: 64, 
+                maxWidth: 64, 
+                maxHeight: 64,
+                minWidth: 64,
+                minHeight: 64,
+                transform: 'translateZ(0)',
+              }}
             />
           </div>
           {/* Pulsing ring animation */}

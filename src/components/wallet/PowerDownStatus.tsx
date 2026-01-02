@@ -8,6 +8,7 @@ import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { getSteemPerMvests, vestsToSteem, getDaysUntilNextWithdrawal } from '@/utils/utility';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 interface PowerDownStatusProps {
   account: any;
@@ -18,7 +19,6 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [weeklySteem, setWeeklySteem] = useState(0);
   const [username, setUsername] = useState<string | null>(null);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
   
@@ -31,9 +31,7 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
       try {
         const storage = SecureStorageFactory.getInstance();
         const user = await storage.getItem('steem_username');
-        const key = await storage.getItem('steem_active_key');
         setUsername(user);
-        setActiveKey(key);
       } catch (error) {
         console.error('Error loading credentials from storage:', error);
       }
@@ -115,7 +113,8 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
   };
 
   const handlePrivateKeyCancel = async () => {
-    const privateKeyString = activeKey;
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(username!, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",

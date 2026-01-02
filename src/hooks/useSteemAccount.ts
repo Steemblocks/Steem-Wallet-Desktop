@@ -31,8 +31,10 @@ export const useSteemAccount = (username: string) => {
     queryKey: ['steemAccount', username],
     queryFn: () => steemApi.getAccount(username),
     enabled: !!username,
-    refetchInterval: 30000, // Refetch every 30 seconds
-    staleTime: 10000, // Consider data stale after 10 seconds
+    refetchInterval: 60000, // Refetch every 60 seconds (WalletDataContext handles real-time)
+    staleTime: 30000, // Consider data stale after 30 seconds
+    gcTime: 120000, // Keep in cache for 2 minutes
+    refetchOnWindowFocus: false,
   });
 };
 

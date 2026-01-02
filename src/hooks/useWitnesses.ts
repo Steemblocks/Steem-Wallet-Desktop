@@ -6,8 +6,10 @@ export const useWitnesses = () => {
   return useQuery({
     queryKey: ['witnesses'],
     queryFn: () => steemApi.getWitnessesByVote(null, 150),
-    refetchInterval: 60000, // Refetch every minute
-    staleTime: 30000, // Consider data stale after 30 seconds
+    refetchInterval: 120000, // Refetch every 2 minutes (witnesses don't change often)
+    staleTime: 60000, // Consider data stale after 60 seconds
+    gcTime: 300000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false,
   });
 };
 

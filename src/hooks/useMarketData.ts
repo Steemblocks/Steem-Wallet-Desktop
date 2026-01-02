@@ -7,6 +7,66 @@ import {
   RecentTradeData 
 } from '@/services/steemWebSocket';
 
+// Helper to parse asset string like "1.234 STEEM" or "5.678 SBD"
+const parseAsset = (asset: string): { amount: number; symbol: string } => {
+  const parts = asset.trim().split(' ');
+  return {
+    amount: parseFloat(parts[0]) || 0,
+    symbol: parts[1] || ''
+  };
+};
+
+// Format WebSocket trade data to match REST API format
+const formatWsTrade = (trade: RecentTradeData) => {
+  const currentPays = parseAsset(trade.current_pays);
+  const openPays = parseAsset(trade.open_pays);
+  
+  // Determine which is STEEM and which is SBD
+  let steemAmount: number;
+  let sbdAmount: number;
+  let type: 'buy' | 'sell';
+  
+  if (currentPays.symbol === 'STEEM') {
+    steemAmount = currentPays.amount;
+    sbdAmount = openPays.amount;
+    type = 'sell'; // Seller is paying STEEM
+  } else {
+    steemAmount = openPays.amount;
+    sbdAmount = currentPays.amount;
+    type = 'buy'; // Buyer is paying SBD
+  }
+  
+  const price = steemAmount > 0 ? sbdAmount / steemAmount : 0;
+  
+  return {
+    date: new Date(trade.date),
+    steemAmount,
+    sbdAmount,
+    price,
+    type
+  };
+};
+
+// Format WebSocket order book to match REST API format
+// WebSocket sends: { price: string, steem: number, sbd: number }
+// REST API sends: { real_price: string, steem: number (scaled by 1000), sbd: number (scaled by 1000) }
+const formatWsOrderBook = (data: OrderBookData) => {
+  return {
+    bids: data.bids.map(bid => ({
+      real_price: bid.price,
+      // WebSocket values may already be properly scaled, so multiply by 1000 
+      // to match REST API format that gets divided by 1000 in formatOrderBookEntry
+      steem: bid.steem * 1000,
+      sbd: bid.sbd * 1000
+    })),
+    asks: data.asks.map(ask => ({
+      real_price: ask.price,
+      steem: ask.steem * 1000,
+      sbd: ask.sbd * 1000
+    }))
+  };
+};
+
 export const useMarketData = () => {
   const [orderBook, setOrderBook] = useState<any>(null);
   const [ticker, setTicker] = useState<any>(null);
@@ -49,8 +109,11 @@ export const useMarketData = () => {
       return false;
     }
 
+    console.log('[useMarketData] Setting up WebSocket subscriptions for real-time updates');
+
     // Subscribe to ticker updates
     const unsubTicker = steemWebSocket.subscribeToTicker((data: MarketTickerData) => {
+      console.log('[useMarketData] Received ticker update via WebSocket');
       setTicker({
         latest: data.latest,
         lowest_ask: data.lowest_ask,
@@ -66,17 +129,17 @@ export const useMarketData = () => {
 
     // Subscribe to order book updates
     const unsubOrderBook = steemWebSocket.subscribeToOrderBook((data: OrderBookData) => {
-      setOrderBook(data);
+      console.log('[useMarketData] Received order book update via WebSocket');
+      // Format WebSocket data to match REST API format
+      setOrderBook(formatWsOrderBook(data));
     });
     unsubscribeRef.current.push(unsubOrderBook);
 
     // Subscribe to recent trades
     const unsubTrades = steemWebSocket.subscribeToTrades((data: RecentTradeData[]) => {
-      const formattedTrades = data.map(trade => ({
-        date: trade.date,
-        current_pays: trade.current_pays,
-        open_pays: trade.open_pays,
-      }));
+      console.log('[useMarketData] Received trades update via WebSocket:', data.length, 'trades');
+      // Format WebSocket data to match REST API format
+      const formattedTrades = data.map(formatWsTrade);
       setTradeHistory(formattedTrades);
     });
     unsubscribeRef.current.push(unsubTrades);
@@ -114,13 +177,14 @@ export const useMarketData = () => {
         }
       }
 
-      // Set up REST polling as backup (every 30 seconds)
+      // Set up REST polling as backup (every 60 seconds when WS connected, 30 seconds when not)
       // This ensures data stays fresh even if WebSocket doesn't send updates
+      const pollingInterval = steemWebSocket.isConnected() ? 60000 : 30000;
       pollingIntervalRef.current = setInterval(() => {
         if (isMounted) {
           fetchMarketDataREST();
         }
-      }, 30000);
+      }, pollingInterval);
     };
 
     initialize();

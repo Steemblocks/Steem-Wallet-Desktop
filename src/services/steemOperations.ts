@@ -197,6 +197,42 @@ export class SteemOperationsService {
     return client.broadcast.sendOperations([updateProposalVotesOp], privateKey);
   }
 
+  // Create limit order (for internal market trading)
+  async createLimitOrder(
+    owner: string,
+    orderid: number,
+    amountToSell: string,
+    minToReceive: string,
+    fillOrKill: boolean,
+    expiration: string,
+    privateKey: dsteem.PrivateKey
+  ): Promise<any> {
+    const limitOrderCreateOp: dsteem.Operation = [
+      'limit_order_create',
+      {
+        owner,
+        orderid,
+        amount_to_sell: amountToSell,
+        min_to_receive: minToReceive,
+        fill_or_kill: fillOrKill,
+        expiration
+      }
+    ];
+    return client.broadcast.sendOperations([limitOrderCreateOp], privateKey);
+  }
+
+  // Cancel limit order
+  async cancelLimitOrder(owner: string, orderid: number, privateKey: dsteem.PrivateKey): Promise<any> {
+    const limitOrderCancelOp: dsteem.Operation = [
+      'limit_order_cancel',
+      {
+        owner,
+        orderid
+      }
+    ];
+    return client.broadcast.sendOperations([limitOrderCancelOp], privateKey);
+  }
+
   // Generic broadcast operation method
   async broadcastOperation(operations: dsteem.Operation[], privateKey: dsteem.PrivateKey): Promise<any> {
     return client.broadcast.sendOperations(operations, privateKey);

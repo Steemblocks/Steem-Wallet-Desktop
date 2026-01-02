@@ -1,6 +1,107 @@
 use crate::crypto::{decrypt_private_key, encrypt_private_key, EncryptedKey};
 use serde::{Deserialize, Serialize};
 
+/// Response for encryption operations
+#[derive(Serialize, Deserialize)]
+pub struct EncryptResponse {
+    pub success: bool,
+    pub encrypted_data: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Response for decryption operations
+#[derive(Serialize, Deserialize)]
+pub struct DecryptResponse {
+    pub success: bool,
+    pub decrypted_data: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Tauri command to encrypt sensitive data with a password
+/// Used for encrypting private keys before storage
+#[tauri::command]
+pub fn encrypt_sensitive_data(data: String, password: String) -> Result<EncryptResponse, String> {
+    if data.is_empty() {
+        return Ok(EncryptResponse {
+            success: false,
+            encrypted_data: None,
+            error: Some("Data cannot be empty".to_string()),
+        });
+    }
+
+    if password.is_empty() {
+        return Ok(EncryptResponse {
+            success: false,
+            encrypted_data: None,
+            error: Some("Password cannot be empty".to_string()),
+        });
+    }
+
+    match encrypt_private_key(&data, &password) {
+        Ok(encrypted_key) => {
+            // Serialize the encrypted key structure to JSON
+            let json = serde_json::to_string(&encrypted_key)
+                .map_err(|e| format!("Failed to serialize: {}", e))?;
+            Ok(EncryptResponse {
+                success: true,
+                encrypted_data: Some(json),
+                error: None,
+            })
+        }
+        Err(e) => Ok(EncryptResponse {
+            success: false,
+            encrypted_data: None,
+            error: Some(format!("Encryption failed: {}", e)),
+        }),
+    }
+}
+
+/// Tauri command to decrypt sensitive data with a password
+/// Used for decrypting private keys when needed for signing
+#[tauri::command]
+pub fn decrypt_sensitive_data(encrypted_data: String, password: String) -> Result<DecryptResponse, String> {
+    if encrypted_data.is_empty() {
+        return Ok(DecryptResponse {
+            success: false,
+            decrypted_data: None,
+            error: Some("Encrypted data cannot be empty".to_string()),
+        });
+    }
+
+    if password.is_empty() {
+        return Ok(DecryptResponse {
+            success: false,
+            decrypted_data: None,
+            error: Some("Password cannot be empty".to_string()),
+        });
+    }
+
+    // Parse the encrypted key structure from JSON
+    let encrypted_key: EncryptedKey = match serde_json::from_str(&encrypted_data) {
+        Ok(key) => key,
+        Err(e) => {
+            return Ok(DecryptResponse {
+                success: false,
+                decrypted_data: None,
+                error: Some(format!("Invalid encrypted data format: {}", e)),
+            });
+        }
+    };
+
+    match decrypt_private_key(&encrypted_key, &password) {
+        Ok(decrypted) => Ok(DecryptResponse {
+            success: true,
+            decrypted_data: Some(decrypted),
+            error: None,
+        }),
+        Err(e) => Ok(DecryptResponse {
+            success: false,
+            decrypted_data: None,
+            error: Some(format!("Decryption failed: {}", e)),
+        }),
+    }
+}
+
 /// Request to encrypt and store a private key
 #[derive(Serialize, Deserialize)]
 pub struct StoreKeyRequest {

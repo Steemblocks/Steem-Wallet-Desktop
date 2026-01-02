@@ -190,15 +190,20 @@ const Index = () => {
           variant: "success",
         });
       } else {
-        // No accounts remaining, fully logout
+        // No accounts remaining, clear account data but keep app lock intact
+        // App lock is a separate security layer and should persist
+        await accountManager.clearAllAccounts();
+        
+        // Reset all local state
         setLoggedInUser(null);
         setSelectedAccount("");
         setLoginMethod(null);
         setActiveTab("overview");
+        
         navigate("/");
         toast({
           title: "Logged Out",
-          description: "You have been logged out successfully.",
+          description: "All Steem account data has been cleared.",
           variant: "success",
         });
       }

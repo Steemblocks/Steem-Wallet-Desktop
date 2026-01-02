@@ -14,6 +14,8 @@ import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { SecureStorageFactory } from '@/services/secureStorage';
 import { AppLockService } from '@/services/appLockService';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
+import { accountManager } from '@/services/accountManager';
 import ChangePasswordDialog from './ChangePasswordDialog';
 
 interface AccountSecurityOperationsProps {
@@ -89,14 +91,16 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
         throw new Error('The master password does not match this account. Please check your password.');
       }
 
-      // Store all keys securely
-      const storage = SecureStorageFactory.getInstance();
-      await storage.setItem('steem_master_password', importPassword);
-      await storage.setItem('steem_owner_key', ownerKey.toString());
-      await storage.setItem('steem_active_key', activeKey.toString());
-      await storage.setItem('steem_posting_key', postingKey.toString());
-      await storage.setItem('steem_memo_key', memoKey.toString());
-      await storage.setItem('steem_login_method', 'masterpassword');
+      // Store all keys securely using accountManager (encrypts if app lock is set)
+      await accountManager.addAccount({
+        username: loggedInUser,
+        loginMethod: 'masterpassword',
+        ownerKey: ownerKey.toString(),
+        activeKey: activeKey.toString(),
+        postingKey: postingKey.toString(),
+        memoKey: memoKey.toString(),
+        masterPassword: importPassword,
+      });
 
       // Generate the revealed keys structure
       const privateKeys = steemOperations.generateKeys(loggedInUser, importPassword, ['owner', 'active', 'posting', 'memo']);
@@ -142,25 +146,25 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
     }
 
     try {
-      const storage = SecureStorageFactory.getInstance();
-      const masterPassword = await storage.getItem('steem_master_password');
+      // Get decrypted keys from encrypted storage (including master password)
       const storedKeys = {
-        owner: await storage.getItem('steem_owner_key'),
-        active: await storage.getItem('steem_active_key'),
-        posting: await storage.getItem('steem_posting_key'),
-        memo: await storage.getItem('steem_memo_key')
+        owner: await getDecryptedKey(loggedInUser, 'owner'),
+        active: await getDecryptedKey(loggedInUser, 'active'),
+        posting: await getDecryptedKey(loggedInUser, 'posting'),
+        memo: await getDecryptedKey(loggedInUser, 'memo'),
+        master: await accountManager.getDecryptedKey(loggedInUser, 'master')
       };
 
       let privateKeys: any = {};
 
-      if (masterPassword) {
+      if (storedKeys.master) {
         // Generate keys from master password using the same mechanism as steemitwallet.com:
         // private_key = PrivateKey.fromSeed(username + role + password)
-        privateKeys = steemOperations.generateKeys(loggedInUser, masterPassword, ['owner', 'active', 'posting', 'memo']);
+        privateKeys = steemOperations.generateKeys(loggedInUser, storedKeys.master, ['owner', 'active', 'posting', 'memo']);
       } else {
         // Use stored private keys (when logged in with individual private key)
         Object.entries(storedKeys).forEach(([role, key]) => {
-          if (key) {
+          if (key && role !== 'master') {
             privateKeys[role] = {
               private: key,
               public: steemOperations.wifToPublic(key)
@@ -214,9 +218,8 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
       return;
     }
 
-    const storage = SecureStorageFactory.getInstance();
-    const ownerKey = await storage.getItem('steem_owner_key');
-    const activeKey = await storage.getItem('steem_active_key');
+    const ownerKey = await getDecryptedKey(loggedInUser, 'owner');
+    const activeKey = await getDecryptedKey(loggedInUser, 'active');
     
     if (!ownerKey && !activeKey) {
       toast({
@@ -269,10 +272,9 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
     setIsLoading(true);
 
     try {
-      const storage = SecureStorageFactory.getInstance();
-      // Try owner key first, then active key
-      const ownerKeyString = await storage.getItem('steem_owner_key');
-      const activeKeyString = await storage.getItem('steem_active_key');
+      // Try owner key first, then active key (decrypted from secure storage)
+      const ownerKeyString = await getDecryptedKey(loggedInUser, 'owner');
+      const activeKeyString = await getDecryptedKey(loggedInUser, 'active');
       
       let privateKey: dsteem.PrivateKey;
       if (ownerKeyString) {
@@ -382,8 +384,7 @@ const AccountSecurityOperations = ({ loggedInUser, accountData }: AccountSecurit
     setIsLoading(true);
 
     try {
-      const storage = SecureStorageFactory.getInstance();
-      const ownerKeyString = await storage.getItem('steem_owner_key');
+      const ownerKeyString = await getDecryptedKey(loggedInUser, 'owner');
       if (!ownerKeyString) {
         toast({
           title: "Owner Key Required",

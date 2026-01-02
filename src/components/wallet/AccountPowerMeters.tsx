@@ -72,7 +72,7 @@ const PowerBar = memo(({
                   {[...Array(6)].map((_, i) => (
                     <div
                       key={i}
-                      className="absolute rounded-full bg-white/60"
+                      className="absolute rounded-full bg-white/60 will-change-transform"
                       style={{
                         width: `${3 + (i % 3)}px`,
                         height: `${3 + (i % 3)}px`,
@@ -86,10 +86,11 @@ const PowerBar = memo(({
                 
                 {/* Scanning light beam */}
                 <div 
-                  className="absolute inset-y-0 w-8 rounded-full"
+                  className="absolute inset-y-0 w-8 rounded-full will-change-transform"
                   style={{
                     background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)',
                     animation: 'scanBeam 2s ease-in-out infinite',
+                    left: 0,
                   }}
                 />
                 

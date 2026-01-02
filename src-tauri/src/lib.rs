@@ -17,6 +17,7 @@ pub fn run() {
             if let Err(e) = storage.init(app.handle()) {
                 eprintln!("Failed to initialize storage: {}", e);
             }
+            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -27,6 +28,8 @@ pub fn run() {
             storage::storage_remove,
             storage::storage_clear,
             // Crypto commands
+            encrypt_sensitive_data,
+            decrypt_sensitive_data,
             store_encrypted_key,
             retrieve_encrypted_key,
             sign_transaction,

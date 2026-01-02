@@ -9,6 +9,7 @@ import { steemOperations } from '@/services/steemOperations';
 import { Lock, Loader2, ArrowDown } from "lucide-react";
 import { useSteemAccount } from "@/hooks/useSteemAccount";
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 import PowerDownStatus from './PowerDownStatus';
 
 const PowerOperations = () => {
@@ -18,7 +19,6 @@ const PowerOperations = () => {
   const [isProcessingPowerUp, setIsProcessingPowerUp] = useState(false);
   const [isProcessingPowerDown, setIsProcessingPowerDown] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
   const { toast } = useToast();
   
   // Refs to track if transactions have been submitted
@@ -31,9 +31,7 @@ const PowerOperations = () => {
       try {
         const storage = SecureStorageFactory.getInstance();
         const user = await storage.getItem('steem_username');
-        const key = await storage.getItem('steem_active_key');
         setUsername(user);
-        setActiveKey(key);
       } catch (error) {
         console.error('Error loading credentials from storage:', error);
       }
@@ -182,7 +180,8 @@ const PowerOperations = () => {
   };
 
   const handlePrivateKeyPowerUp = async (operation: any) => {
-    const privateKeyString = activeKey;
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(username!, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",
@@ -245,7 +244,8 @@ const PowerOperations = () => {
   };
 
   const handlePrivateKeyPowerDown = async (username: string, vestsAmount: string) => {
-    const privateKeyString = activeKey;
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(username, 'active');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",

@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 interface Proposal {
   id: number;
@@ -216,8 +217,8 @@ const ProposalOperations = () => {
   };
 
   const handlePrivateKeyOperation = async (username: string, operation: any, action: string) => {
-    const storage = SecureStorageFactory.getInstance();
-    const privateKeyString = await storage.getItem('steem_posting_key');
+    // Get decrypted key from secure storage
+    const privateKeyString = await getDecryptedKey(username, 'posting');
     if (!privateKeyString) {
       toast({
         title: "Private Key Not Found",

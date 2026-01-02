@@ -58,10 +58,18 @@ const WelcomePage = ({ onLoginSuccess }: WelcomePageProps) => {
             <img 
               src="/steem-logo.png" 
               alt="Steem" 
-              className="w-20 h-20"
-              width={80}
-              height={80}
-              style={{ width: 80, height: 80, maxWidth: 80, maxHeight: 80 }}
+              className="object-contain"
+              width={64}
+              height={64}
+              style={{ 
+                width: 64, 
+                height: 64, 
+                maxWidth: 64, 
+                maxHeight: 64,
+                minWidth: 64,
+                minHeight: 64,
+                transform: 'translateZ(0)',
+              }}
             />
           </div>
           
@@ -92,7 +100,7 @@ const WelcomePage = ({ onLoginSuccess }: WelcomePageProps) => {
           </LoginDialog>
           
           <p className="mt-4 text-sm text-slate-500">
-            Login with your Steem private key or master password
+            Login with your Steem master password
           </p>
         </div>
 

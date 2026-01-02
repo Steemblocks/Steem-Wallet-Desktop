@@ -1,12 +1,12 @@
 
 // Centralized API configuration
 export const API_CONFIG = {
-  // Primary Steem API endpoints (in order of preference) - api.steemit.com is most reliable
+  // Primary Steem API endpoints (in order of preference) - Moecki is most reliable
   STEEM_ENDPOINTS: [
-    'https://api.steemit.com',
-    'https://api.steemitdev.com',
-    'https://steemd.steemworld.org/',
-    'https://api.moecki.online/'
+    'https://api.moecki.online',
+    'https://steemd.steemworld.org',
+    'https://api.pennsif.net',
+    'https://api.justyy.com'
   ],
   
   // Default endpoint index
@@ -31,18 +31,11 @@ export interface SteemNode {
 
 export const STEEM_NODES: SteemNode[] = [
   {
-    url: 'https://api.steemit.com',
-    name: 'Steemit (Official)',
-    location: 'Global',
-    description: 'Official Steemit API node - Most reliable and widely used',
+    url: 'https://api.moecki.online',
+    name: 'Moecki',
+    location: 'Europe',
+    description: 'Community node maintained by @moecki - Fast and reliable',
     isRecommended: true
-  },
-  {
-    url: 'https://api.steemitdev.com',
-    name: 'Steemit Dev',
-    location: 'Global',
-    description: 'Steemit development node - Good for testing',
-    isRecommended: false
   },
   {
     url: 'https://steemd.steemworld.org',
@@ -52,10 +45,52 @@ export const STEEM_NODES: SteemNode[] = [
     isRecommended: true
   },
   {
-    url: 'https://api.moecki.online',
-    name: 'Moecki',
-    location: 'Europe',
-    description: 'Community node maintained by @moecki',
+    url: 'https://api.pennsif.net',
+    name: 'Pennsif',
+    location: 'Global',
+    description: 'Community node maintained by @pennsif',
+    isRecommended: true
+  },
+  {
+    url: 'https://api.justyy.com',
+    name: 'Justyy',
+    location: 'Global',
+    description: 'Community node maintained by @justyy',
+    isRecommended: true
+  },
+  {
+    url: 'https://api.wherein.io',
+    name: 'Wherein',
+    location: 'Asia',
+    description: 'Wherein API node - Good for Asian users',
+    isRecommended: false
+  },
+  {
+    url: 'https://api.steememory.com',
+    name: 'SteemEmory',
+    location: 'Global',
+    description: 'SteemEmory community node',
+    isRecommended: false
+  },
+  {
+    url: 'https://steemapi.boylikegirl.club',
+    name: 'BoyLikeGirl',
+    location: 'Asia',
+    description: 'Community node by @boylikegirl.club',
+    isRecommended: false
+  },
+  {
+    url: 'https://api.steemit.com',
+    name: 'Steemit (Official)',
+    location: 'Global',
+    description: 'Official Steemit API node',
+    isRecommended: false
+  },
+  {
+    url: 'https://api.steemitdev.com',
+    name: 'Steemit Dev',
+    location: 'Global',
+    description: 'Steemit development node - Good for testing',
     isRecommended: false
   }
 ];

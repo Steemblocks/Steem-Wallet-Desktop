@@ -2,9 +2,13 @@
  * App Lock Service
  * Manages the one-time app lock password for securing the wallet
  * This is separate from Steem keys - it's a local app security layer
+ * 
+ * The app lock password is also used to encrypt all stored private keys
  */
 
 import { SecureStorageFactory } from './secureStorage';
+import { accountManager } from './accountManager';
+import { encryptedKeyStorage } from './encryptedKeyStorage';
 
 // Storage keys
 const APP_LOCK_HASH_KEY = 'app_lock_password_hash';
@@ -85,6 +89,7 @@ export class AppLockService {
 
   /**
    * Set up the app lock password (one-time setup)
+   * Also migrates any existing keys to encrypted storage
    */
   async setupPassword(password: string): Promise<boolean> {
     try {
@@ -101,6 +106,13 @@ export class AppLockService {
       await this.storage.setItem(APP_LOCK_HASH_KEY, hash);
       await this.storage.setItem(APP_LOCK_SETUP_KEY, 'true');
 
+      // Cache the password for subsequent key operations
+      accountManager.cachePassword(password);
+      encryptedKeyStorage.cachePassword(password);
+
+      // Migrate any existing unencrypted keys to encrypted storage
+      await accountManager.migrateToEncryptedStorage(password);
+
       return true;
     } catch (error) {
       console.error('Error setting up app lock password:', error);
@@ -110,6 +122,7 @@ export class AppLockService {
 
   /**
    * Verify the app lock password
+   * On success, caches the password for key decryption operations
    */
   async verifyPassword(password: string): Promise<boolean> {
     try {
@@ -121,7 +134,15 @@ export class AppLockService {
       }
 
       const inputHash = await hashPassword(password, salt);
-      return inputHash === storedHash;
+      const isValid = inputHash === storedHash;
+      
+      if (isValid) {
+        // Cache password for key operations
+        accountManager.cachePassword(password);
+        encryptedKeyStorage.cachePassword(password);
+      }
+      
+      return isValid;
     } catch (error) {
       console.error('Error verifying app lock password:', error);
       return false;
@@ -130,6 +151,7 @@ export class AppLockService {
 
   /**
    * Change the app lock password (requires current password)
+   * Re-encrypts all stored keys with the new password
    */
   async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
     try {
@@ -144,11 +166,18 @@ export class AppLockService {
         throw new Error(validation.error || 'Invalid password');
       }
 
+      // Re-encrypt all keys with new password BEFORE changing the hash
+      await accountManager.reEncryptAllKeys(currentPassword, newPassword);
+
       const salt = generateSalt();
       const hash = await hashPassword(newPassword, salt);
 
       await this.storage.setItem(APP_LOCK_SALT_KEY, salt);
       await this.storage.setItem(APP_LOCK_HASH_KEY, hash);
+
+      // Update cached password
+      accountManager.cachePassword(newPassword);
+      encryptedKeyStorage.cachePassword(newPassword);
 
       return true;
     } catch (error) {
@@ -163,6 +192,10 @@ export class AppLockService {
    */
   async resetApp(): Promise<boolean> {
     try {
+      // Clear password cache
+      accountManager.clearPasswordCache();
+      encryptedKeyStorage.clearPasswordCache();
+      
       await this.storage.clear();
       return true;
     } catch (error) {
@@ -174,6 +207,7 @@ export class AppLockService {
   /**
    * Remove only the app lock (keeps Steem credentials)
    * Requires password verification first
+   * WARNING: This will make stored keys unrecoverable!
    */
   async removeAppLock(password: string): Promise<boolean> {
     try {
@@ -181,6 +215,10 @@ export class AppLockService {
       if (!isValid) {
         throw new Error('Password is incorrect');
       }
+
+      // Clear password cache
+      accountManager.clearPasswordCache();
+      encryptedKeyStorage.clearPasswordCache();
 
       await this.storage.removeItem(APP_LOCK_HASH_KEY);
       await this.storage.removeItem(APP_LOCK_SALT_KEY);

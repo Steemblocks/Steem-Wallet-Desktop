@@ -10,6 +10,7 @@ import { steemOperations } from '@/services/steemOperations';
 import * as dsteem from 'dsteem';
 import { FormattedDelegation } from '@/hooks/useDelegations';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { getDecryptedKey } from '@/hooks/useSecureKeys';
 
 interface DelegationEditDialogProps {
   delegation: FormattedDelegation;
@@ -121,9 +122,9 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
   };
 
   const handlePrivateKeyDelegation = async (delegator: string, delegatee: string, vestingShares: string) => {
-    const storage = SecureStorageFactory.getInstance();
-    const activeKey = await storage.getItem('steem_active_key');
-    const ownerKey = await storage.getItem('steem_owner_key');
+    // Get decrypted keys from secure storage
+    const activeKey = await getDecryptedKey(delegator, 'active');
+    const ownerKey = await getDecryptedKey(delegator, 'owner');
     
     let privateKeyString = activeKey || ownerKey;
     

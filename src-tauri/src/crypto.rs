@@ -17,17 +17,18 @@ pub struct EncryptedKey {
     pub salt: String,
 }
 
-/// Initialize a new encryption key from a password
-pub fn derive_key_from_password(password: &str) -> Result<[u8; 32], String> {
-    let salt = SaltString::generate(rand::thread_rng());
+/// Derive a key from password using a provided salt (for decryption)
+pub fn derive_key_from_password_with_salt(password: &str, salt_str: &str) -> Result<[u8; 32], String> {
+    let salt = SaltString::from_b64(salt_str)
+        .map_err(|e| format!("Invalid salt: {}", e))?;
 
     let argon2 = Argon2::new(
         Algorithm::Argon2id,
         Version::V0x13,
         argon2::Params::new(
-            19456,
-            2,
-            1,
+            19456,  // 19 MB memory
+            2,      // 2 iterations
+            1,      // 1 parallel lane
             Some(32),
         )
         .map_err(|e| format!("Failed to create Argon2 params: {}", e))?,
@@ -38,17 +39,55 @@ pub fn derive_key_from_password(password: &str) -> Result<[u8; 32], String> {
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| format!("Password hashing failed: {}", e))?;
 
-    // Extract the hash as key material
-    let hash_string = password_hash.to_string();
-    let key_bytes = hash_string.as_bytes();
-
-    // Create a [u8; 32] from the hash
+    // Extract the hash output directly
+    let hash_output = password_hash.hash
+        .ok_or("No hash output")?;
+    
+    let hash_bytes = hash_output.as_bytes();
+    
+    // Create a [u8; 32] key from the hash
     let mut key = [0u8; 32];
-    for (i, &byte) in key_bytes.iter().take(32).enumerate() {
-        key[i] = byte;
-    }
+    let len = std::cmp::min(32, hash_bytes.len());
+    key[..len].copy_from_slice(&hash_bytes[..len]);
 
     Ok(key)
+}
+
+/// Initialize a new encryption key from a password (generates new salt)
+/// Returns the key and the salt string for storage
+pub fn derive_key_from_password(password: &str) -> Result<([u8; 32], String), String> {
+    let salt = SaltString::generate(rand::thread_rng());
+    let salt_str = salt.to_string();
+
+    let argon2 = Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        argon2::Params::new(
+            19456,  // 19 MB memory
+            2,      // 2 iterations  
+            1,      // 1 parallel lane
+            Some(32),
+        )
+        .map_err(|e| format!("Failed to create Argon2 params: {}", e))?,
+    );
+
+    // Hash password to get key bytes
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("Password hashing failed: {}", e))?;
+
+    // Extract the hash output directly
+    let hash_output = password_hash.hash
+        .ok_or("No hash output")?;
+    
+    let hash_bytes = hash_output.as_bytes();
+    
+    // Create a [u8; 32] key from the hash
+    let mut key = [0u8; 32];
+    let len = std::cmp::min(32, hash_bytes.len());
+    key[..len].copy_from_slice(&hash_bytes[..len]);
+
+    Ok((key, salt_str))
 }
 
 /// Encrypt a private key with a password
@@ -58,8 +97,8 @@ pub fn encrypt_private_key(private_key: &str, password: &str) -> Result<Encrypte
     let nonce_bytes: [u8; 12] = rng.gen();
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    // Derive key from password
-    let key = derive_key_from_password(password)?;
+    // Derive key from password (get key and salt)
+    let (key, salt_str) = derive_key_from_password(password)?;
     let cipher = Aes256Gcm::new(&key.into());
 
     // Encrypt the private key
@@ -73,14 +112,11 @@ pub fn encrypt_private_key(private_key: &str, password: &str) -> Result<Encrypte
         )
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
-    // Generate salt for storage
-    let salt = SaltString::generate(rand::thread_rng());
-
     Ok(EncryptedKey {
         ciphertext: hex::encode(&ciphertext),
         nonce: hex::encode(nonce.as_slice()),
         tag: String::new(), // Tag is embedded in AES-GCM ciphertext
-        salt: salt.to_string(),
+        salt: salt_str,     // Store the salt used for key derivation
     })
 }
 
@@ -89,8 +125,8 @@ pub fn decrypt_private_key(
     encrypted_key: &EncryptedKey,
     password: &str,
 ) -> Result<String, String> {
-    // Derive key from password
-    let key = derive_key_from_password(password)?;
+    // Derive key from password using the stored salt
+    let key = derive_key_from_password_with_salt(password, &encrypted_key.salt)?;
     let cipher = Aes256Gcm::new(&key.into());
 
     // Decode hex strings

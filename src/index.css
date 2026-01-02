@@ -148,24 +148,25 @@ textarea::placeholder {
   overflow: visible !important;
 }
 
-/* Power meter animations */
+/* Power meter animations - GPU accelerated */
 @keyframes bubble {
   0% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(1) translateZ(0);
     opacity: 0.7;
   }
   50% {
+    transform: translateY(-5px) scale(0.8) translateZ(0);
     opacity: 0.9;
   }
   100% {
-    transform: translateY(-10px) scale(0.5);
+    transform: translateY(-10px) scale(0.5) translateZ(0);
     opacity: 0;
   }
 }
 
 @keyframes scanBeam {
   0% {
-    left: -20%;
+    transform: translateX(-100%) translateZ(0);
     opacity: 0;
   }
   20% {
@@ -175,7 +176,7 @@ textarea::placeholder {
     opacity: 1;
   }
   100% {
-    left: 100%;
+    transform: translateX(400%) translateZ(0);
     opacity: 0;
   }
 }
@@ -196,6 +197,21 @@ textarea::placeholder {
   50% {
     background-position: 200% 200%;
   }
+}
+
+/* Power meter bubble animation - explicitly define for proper rendering */
+.animate-bubble {
+  animation: bubble 1.5s ease-in infinite;
+}
+
+/* Power meter scan beam animation */
+.animate-scanBeam {
+  animation: scanBeam 2s ease-in-out infinite;
+}
+
+/* Power meter wave shine animation */
+.animate-waveShine {
+  animation: waveShine 1.5s linear infinite;
 }
 
 /* Loading screen shimmer animation */
