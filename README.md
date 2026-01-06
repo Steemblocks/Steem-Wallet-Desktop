@@ -2,7 +2,7 @@
 
 A secure, cross-platform desktop wallet for the Steem blockchain built with Tauri, React, and Rust.
 
-![Version](https://img.shields.io/badge/version-0.1.3-blue)
+![Version](https://img.shields.io/badge/version-0.1.4-blue)
 ![License](https://img.shields.io/badge/license-Non--Commercial-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
@@ -367,6 +367,12 @@ For commercial licensing inquiries, contact the maintainers.
 ---
 
 ## Changelog
+
+### Version 0.1.4 (January 2026)
+**Bug Fixes**
+- Fixed DialogContent accessibility warnings in production builds
+- Added proper screen reader support for App Lock Setup dialog
+- Improved ARIA attributes for better accessibility compliance
 
 ### Version 0.1.3 (January 2026)
 **Security & Authentication**
