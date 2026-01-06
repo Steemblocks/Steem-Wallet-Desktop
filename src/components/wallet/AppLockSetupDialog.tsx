@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Shield, Eye, EyeOff, AlertTriangle, Check, Lock, Loader2, KeyRound } from "lucide-react";
@@ -125,12 +125,12 @@ export const AppLockSetupDialog = ({ isOpen, onSetupComplete }: AppLockSetupDial
               <Shield className="h-6 w-6 text-steemit-400" />
             </div>
             
-            <h2 className="text-lg font-semibold text-white mb-1">
+            <DialogTitle className="text-lg font-semibold text-white mb-1">
               Create App Lock Password
-            </h2>
-            <p className="text-sm text-slate-400 max-w-sm">
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-400 max-w-sm">
               Set up a password to protect your wallet. You'll need this every time you open the app.
-            </p>
+            </DialogDescription>
           </div>
         </div>
 
