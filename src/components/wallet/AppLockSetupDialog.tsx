@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Shield, Eye, EyeOff, AlertTriangle, Check, Lock, Loader2, KeyRound } from "lucide-react";
@@ -116,7 +116,11 @@ export const AppLockSetupDialog = ({ isOpen, onSetupComplete }: AppLockSetupDial
       <DialogContent 
         className="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-slate-700/50 text-white sm:max-w-md p-0 gap-0 shadow-2xl shadow-black/50 max-h-[90vh] overflow-y-auto" 
         onPointerDownOutside={(e) => e.preventDefault()}
+        aria-describedby={undefined}
       >
+        {/* Visually hidden but accessible title for screen readers */}
+        <DialogTitle className="sr-only">Create App Lock Password</DialogTitle>
+        
         {/* Header Section with Icon */}
         <div className="relative px-6 pt-5 pb-3">
           <div className="flex flex-col items-center text-center">
@@ -125,12 +129,12 @@ export const AppLockSetupDialog = ({ isOpen, onSetupComplete }: AppLockSetupDial
               <Shield className="h-6 w-6 text-steemit-400" />
             </div>
             
-            <DialogTitle className="text-lg font-semibold text-white mb-1">
+            <h2 className="text-lg font-semibold text-white mb-1">
               Create App Lock Password
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-400 max-w-sm">
+            </h2>
+            <p className="text-sm text-slate-400 max-w-sm">
               Set up a password to protect your wallet. You'll need this every time you open the app.
-            </DialogDescription>
+            </p>
           </div>
         </div>
 
