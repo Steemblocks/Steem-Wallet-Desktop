@@ -170,7 +170,7 @@ const WalletOverview = ({
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-steemit-500 text-white hover:bg-steemit-600 transition-all shadow-lg shadow-steemit-500/20">
+                          <button className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 transition-all shadow-lg shadow-blue-500/20">
                             BUY
                           </button>
                         </DropdownMenuTrigger>
@@ -284,7 +284,7 @@ const WalletOverview = ({
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-steemit-500 text-white hover:bg-steemit-600 transition-all shadow-lg shadow-steemit-500/20">
+                          <button className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 transition-all shadow-lg shadow-blue-500/20">
                             BUY
                           </button>
                         </DropdownMenuTrigger>

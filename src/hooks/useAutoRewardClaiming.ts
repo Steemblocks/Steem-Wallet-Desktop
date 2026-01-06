@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { steemOperations } from '@/services/steemOperations';
-import { steemApi } from '@/services/steemApi';
+import { steemApi, SteemAccount } from '@/services/steemApi';
 import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
 import * as dsteem from 'dsteem';
 import { useToast } from '@/hooks/use-toast';
@@ -12,12 +12,16 @@ const CHECK_INTERVAL = 5 * 60 * 1000;
 interface UseAutoRewardClaimingOptions {
   enabled: boolean;
   username: string | null;
+  // Optional: Pass in account data from WalletDataContext to avoid redundant API calls
+  // If provided, the hook will use this data first and only fetch if needed
+  accountData?: SteemAccount | null;
   onRewardsClaimed?: () => void;
 }
 
 export const useAutoRewardClaiming = ({ 
   enabled, 
   username,
+  accountData,
   onRewardsClaimed 
 }: UseAutoRewardClaimingOptions) => {
   const { toast } = useToast();
@@ -37,13 +41,21 @@ export const useAutoRewardClaiming = ({
     }
 
     try {
-      // Fetch latest account data
-      const accounts = await steemApi.getAccounts([username]);
-      if (!accounts || accounts.length === 0) {
-        return;
+      // Use provided account data if available and fresh, otherwise fetch
+      let account: SteemAccount | null = null;
+      
+      if (accountData && accountData.name === username) {
+        // Use the provided account data (already fetched by WalletDataContext)
+        account = accountData;
+      } else {
+        // Fallback: Fetch latest account data
+        const accounts = await steemApi.getAccounts([username]);
+        if (!accounts || accounts.length === 0) {
+          return;
+        }
+        account = accounts[0];
       }
 
-      const account = accounts[0];
       const rewardSteem = parseFloat(account.reward_steem_balance?.split(' ')[0] || '0');
       const rewardSbd = parseFloat(account.reward_sbd_balance?.split(' ')[0] || '0');
       const rewardVests = parseFloat(account.reward_vesting_balance?.split(' ')[0] || '0');
@@ -125,7 +137,7 @@ export const useAutoRewardClaiming = ({
     } finally {
       isClaimingRef.current = false;
     }
-  }, [enabled, username, toast, onRewardsClaimed]);
+  }, [enabled, username, accountData, toast, onRewardsClaimed]);
 
   useEffect(() => {
     if (!enabled || !username) {

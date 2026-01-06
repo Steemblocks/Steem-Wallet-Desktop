@@ -70,7 +70,7 @@ const DelegationConfirmDialog = ({
       const activeKey = await getDecryptedKey(delegator, 'active');
       const ownerKey = await getDecryptedKey(delegator, 'owner');
       
-      let privateKeyString = activeKey || ownerKey;
+      const privateKeyString = activeKey || ownerKey;
       
       if (!privateKeyString) {
         toast({

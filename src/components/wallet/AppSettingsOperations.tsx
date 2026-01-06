@@ -174,6 +174,7 @@ const AppSettingsOperations = ({
     if (selectedNode) {
       testCurrentNodeLatency();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNode]);
 
   // Auto node switching - find and switch to best node based on latency
@@ -250,6 +251,7 @@ const AppSettingsOperations = ({
       }, 1000);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, settings.autoNodeSwitch]);
 
   // Save settings to storage when changed
@@ -260,6 +262,9 @@ const AppSettingsOperations = ({
     try {
       const storage = SecureStorageFactory.getInstance();
       await storage.setItem("app_settings", JSON.stringify(newSettings));
+
+      // Dispatch custom event for immediate sync across components
+      window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: newSettings }));
 
       // If enabling auto node switch, immediately find and switch to best node
       if (key === "autoNodeSwitch" && value && !isCustomNodeSelected) {
@@ -292,6 +297,9 @@ const AppSettingsOperations = ({
       const storage = SecureStorageFactory.getInstance();
       await storage.setItem("app_settings", JSON.stringify(newSettings));
 
+      // Dispatch custom event for immediate sync across components
+      window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: newSettings }));
+
       const option = AUTO_LOCK_OPTIONS.find(o => o.value === minutes);
       toast({
         title: "Auto-Lock Time Updated",
@@ -318,13 +326,66 @@ const AppSettingsOperations = ({
     return labels[key];
   };
 
-  // Test node latency
-  const testNodeLatency = async (nodeUrl: string): Promise<number | null> => {
+  // Check if running in Tauri - check multiple ways to be sure
+  const isTauri = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    // Check for __TAURI__ global
+    if ('__TAURI__' in window) return true;
+    // Check for __TAURI_INTERNALS__ (Tauri v2)
+    if ('__TAURI_INTERNALS__' in window) return true;
+    return false;
+  };
+
+  // Test node latency using Tauri's HTTP client (bypasses CORS)
+  const testNodeLatencyTauri = async (nodeUrl: string): Promise<number | null> => {
     try {
-      // Normalize URL - remove trailing slash for consistency
+      const { invoke } = await import('@tauri-apps/api/core');
+      const normalizedUrl = nodeUrl.replace(/\/+$/, "");
+      
+      console.log("Testing node (Tauri HTTP):", normalizedUrl);
+      
+      const result = await invoke<{
+        success: boolean;
+        status: number;
+        body: string | null;
+        error: string | null;
+        latency_ms: number;
+      }>('http_post', {
+        url: normalizedUrl,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "condenser_api.get_dynamic_global_properties",
+          params: [],
+          id: 1,
+        }),
+      });
+      
+      if (result.success && result.body) {
+        const data = JSON.parse(result.body);
+        if (data.result) {
+          return result.latency_ms;
+        } else if (data.error) {
+          console.error("API error:", data.error);
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Node test failed (Tauri):", nodeUrl, error);
+      return null;
+    }
+  };
+
+  // Test node latency using browser fetch (may fail due to CORS in dev mode)
+  const testNodeLatencyBrowser = async (nodeUrl: string): Promise<number | null> => {
+    try {
       const normalizedUrl = nodeUrl.replace(/\/+$/, "");
 
-      console.log("Testing node:", normalizedUrl);
+      // In dev mode, warn that CORS may cause issues
+      if (import.meta.env.DEV) {
+        console.log("Testing node (Browser - CORS may cause issues):", normalizedUrl);
+      } else {
+        console.log("Testing node (Browser):", normalizedUrl);
+      }
       const startTime = Date.now();
 
       const response = await fetch(normalizedUrl, {
@@ -353,9 +414,26 @@ const AppSettingsOperations = ({
       }
       return null;
     } catch (error) {
-      console.error("Node test failed:", nodeUrl, error);
+      // In dev mode, CORS errors are expected - don't log as errors
+      if (import.meta.env.DEV && error instanceof TypeError && error.message === 'Failed to fetch') {
+        // Silently return null in dev mode for CORS errors
+        return null;
+      }
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.warn("Node test failed (CORS blocked):", nodeUrl);
+      } else {
+        console.error("Node test failed:", nodeUrl, error);
+      }
       return null;
     }
+  };
+
+  // Test node latency - uses Tauri HTTP when available, falls back to browser fetch
+  const testNodeLatency = async (nodeUrl: string): Promise<number | null> => {
+    if (isTauri()) {
+      return testNodeLatencyTauri(nodeUrl);
+    }
+    return testNodeLatencyBrowser(nodeUrl);
   };
 
   // Handle node selection

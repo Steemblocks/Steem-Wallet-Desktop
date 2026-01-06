@@ -26,6 +26,11 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
   // CRITICAL: Track transaction submission to prevent duplicate transactions
   const claimSubmittedRef = useRef(false);
 
+  // Parse reward values (safe even if account is null)
+  const rewardSteem = parseFloat(account?.reward_steem_balance?.split(' ')[0] || '0');
+  const rewardSbd = parseFloat(account?.reward_sbd_balance?.split(' ')[0] || '0');
+  const rewardVests = parseFloat(account?.reward_vesting_balance?.split(' ')[0] || '0');
+
   // Load username from secure storage - reload when account changes
   useEffect(() => {
     const loadData = async () => {
@@ -40,17 +45,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
     loadData();
   }, [account?.name]); // Re-run when account changes
 
-  if (!account) return null;
-  const rewardSteem = parseFloat(account.reward_steem_balance?.split(' ')[0] || '0');
-  const rewardSbd = parseFloat(account.reward_sbd_balance?.split(' ')[0] || '0');
-  const rewardVests = parseFloat(account.reward_vesting_balance?.split(' ')[0] || '0');
-
-  // Check if current user is viewing their own account
-  const isOwnAccount = username && account.name === username;
-
-  // Check if there are any pending rewards
-  const hasPendingRewards = rewardSteem > 0 || rewardSbd > 0 || rewardVests > 0;
-
+  // Convert VESTS to STEEM Power
   useEffect(() => {
     const convertRewardVestsToSteem = async () => {
       if (rewardVests > 0) {
@@ -68,6 +63,15 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
 
     convertRewardVestsToSteem();
   }, [rewardVests]);
+
+  // Early return after all hooks
+  if (!account) return null;
+
+  // Check if current user is viewing their own account
+  const isOwnAccount = username && account.name === username;
+
+  // Check if there are any pending rewards
+  const hasPendingRewards = rewardSteem > 0 || rewardSbd > 0 || rewardVests > 0;
 
   const handleClaimRewards = async () => {
     if (!username || !hasPendingRewards) return;
@@ -115,7 +119,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
     const activeKey = await getDecryptedKey(username!, 'active');
     const ownerKey = await getDecryptedKey(username!, 'owner');
 
-    let privateKeyString = postingKey || activeKey || ownerKey;
+    const privateKeyString = postingKey || activeKey || ownerKey;
     
     if (!privateKeyString) {
       toast({
@@ -166,12 +170,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         return;
       }
       
-      let errorMessage = "Operation failed";
-      if (error.jse_shortmsg) {
-        errorMessage = error.jse_shortmsg;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      const errorMessage = error.jse_shortmsg || error.message || "Operation failed";
       
       toast({
         title: "Operation Failed",

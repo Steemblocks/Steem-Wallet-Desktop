@@ -42,11 +42,13 @@ const Index = () => {
   const [isAppLockSetup, setIsAppLockSetup] = useState<boolean | null>(null); // null = loading
   const [isAppLocked, setIsAppLocked] = useState(true); // Start locked until verified
   const [showSetupDialog, setShowSetupDialog] = useState(false);
-  
+
   // Auto reward claiming state
-  const [autoRewardClaimingEnabled, setAutoRewardClaimingEnabled] = useState(false);
-  
-  // Auto lock timeout state (default 15 minutes)
+  const [autoRewardClaimingEnabled, setAutoRewardClaimingEnabled] =
+    useState(false);
+
+  // Auto lock state
+  const [autoAppLockEnabled, setAutoAppLockEnabled] = useState(false);
   const [autoLockTimeout, setAutoLockTimeout] = useState(15);
 
   const location = useLocation();
@@ -71,10 +73,13 @@ const Index = () => {
   } = useWalletData();
 
   // Wrapper function to update both local and context activeTab
-  const setActiveTab = useCallback((tab: string) => {
-    setActiveTabLocal(tab);
-    setContextActiveTab(tab);
-  }, [setContextActiveTab]);
+  const setActiveTab = useCallback(
+    (tab: string) => {
+      setActiveTabLocal(tab);
+      setContextActiveTab(tab);
+    },
+    [setContextActiveTab]
+  );
 
   // Extract data from context
   const accountData = walletContextData.account;
@@ -156,7 +161,7 @@ const Index = () => {
     setShowSetupDialog(true);
     setLoggedInUser(null);
     setLoginMethod(null);
-  }, []);
+  }, [setLoggedInUser]);
 
   // Handle app lock setup complete
   const handleSetupComplete = useCallback(() => {
@@ -193,13 +198,13 @@ const Index = () => {
         // No accounts remaining, clear account data but keep app lock intact
         // App lock is a separate security layer and should persist
         await accountManager.clearAllAccounts();
-        
+
         // Reset all local state
         setLoggedInUser(null);
         setSelectedAccount("");
         setLoginMethod(null);
         setActiveTab("overview");
-        
+
         navigate("/");
         toast({
           title: "Logged Out",
@@ -215,13 +220,13 @@ const Index = () => {
         variant: "destructive",
       });
     }
-  }, [loggedInUser, navigate, toast, setLoggedInUser, setSelectedAccount]);
+  }, [loggedInUser, navigate, toast, setLoggedInUser, setSelectedAccount, setActiveTab]);
 
   // Initialize auto-lock (user-configurable timeout)
   useAutoLock({
     onLock: handleAutoLock,
     onWarning: handleLockWarning,
-    enabled: isAppLockSetup === true && !isAppLocked,
+    enabled: isAppLockSetup === true && !isAppLocked && autoAppLockEnabled,
     timeout: autoLockTimeout * 60 * 1000, // Convert minutes to milliseconds
   });
 
@@ -234,6 +239,7 @@ const Index = () => {
         if (savedSettings) {
           const settings = JSON.parse(savedSettings);
           setAutoRewardClaimingEnabled(settings.autoRewardClaiming || false);
+          setAutoAppLockEnabled(settings.autoAppLock || false);
           setAutoLockTimeout(settings.autoLockTimeout || 15);
         }
       } catch (error) {
@@ -242,26 +248,41 @@ const Index = () => {
     };
     loadAppSettings();
 
-    // Listen for storage changes (when settings are updated)
+    // Listen for custom settings change event (immediate sync within same tab)
+    const handleSettingsChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        const settings = customEvent.detail;
+        setAutoRewardClaimingEnabled(settings.autoRewardClaiming || false);
+        setAutoAppLockEnabled(settings.autoAppLock || false);
+        setAutoLockTimeout(settings.autoLockTimeout || 15);
+      }
+    };
+
+    // Listen for storage changes (when settings are updated in different tabs)
     const handleStorageChange = () => {
       loadAppSettings();
     };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check settings periodically in case they're changed in the same tab
-    const intervalId = setInterval(loadAppSettings, 5000);
+
+    window.addEventListener("app-settings-changed", handleSettingsChange);
+    window.addEventListener("storage", handleStorageChange);
+
+    // Also check settings periodically as a fallback
+    const intervalId = setInterval(loadAppSettings, 10000);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener("app-settings-changed", handleSettingsChange);
+      window.removeEventListener("storage", handleStorageChange);
       clearInterval(intervalId);
     };
   }, []);
 
   // Auto reward claiming - runs when enabled and user is logged in
+  // Pass account data from context to avoid redundant API calls
   useAutoRewardClaiming({
     enabled: autoRewardClaimingEnabled && !isAppLocked && !!loggedInUser,
     username: loggedInUser,
+    accountData: accountData,
     onRewardsClaimed: refreshAll,
   });
 
@@ -321,7 +342,7 @@ const Index = () => {
       setSelectedAccount(username);
       // Login method will be loaded from storage by accountManager
     },
-    [setLoggedInUser, setSelectedAccount]
+    [setLoggedInUser, setSelectedAccount, setActiveTab]
   );
 
   // Show preloading screen while initial data is loading

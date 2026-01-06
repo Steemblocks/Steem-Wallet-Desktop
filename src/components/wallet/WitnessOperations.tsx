@@ -7,7 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, Vote, UserCheck, Settings, ExternalLink, AlertCircle, Info, Loader2, Shield, TrendingUp, CheckCircle2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Users, Vote, UserCheck, Settings, ExternalLink, AlertCircle, Info, Loader2, Shield, TrendingUp, CheckCircle2, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWitnessData } from "@/hooks/useWitnesses";
 import { useSteemAccount } from '@/hooks/useSteemAccount';
@@ -21,27 +31,73 @@ interface WitnessOperationsProps {
   loggedInUser?: string | null;
 }
 
+// Confirmation dialog state
+interface VoteConfirmation {
+  isOpen: boolean;
+  witnessName: string;
+  isVoting: boolean; // true = vote, false = unvote
+}
+
 const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
   const [proxyAccount, setProxyAccount] = useState("");
   const [filterVotes, setFilterVotes] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingWitness, setProcessingWitness] = useState<string | null>(null);
+  
+  // Vote confirmation dialog state
+  const [voteConfirmation, setVoteConfirmation] = useState<VoteConfirmation>({
+    isOpen: false,
+    witnessName: "",
+    isVoting: true,
+  });
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
   // Ref to track if a transaction has been submitted
   const transactionSubmittedRef = useRef(false);
 
-  const { witnesses, isLoading, error, userVoteCount } = useWitnessData(loggedInUser);
-  const { data: userAccountData } = useSteemAccount(loggedInUser || '');
+  // Fetch user account data - this gives us both proxy and witness_votes
+  const { data: userAccountData, refetch: refetchUserAccount } = useSteemAccount(loggedInUser || '');
+  
+  // Pass the witness votes from userAccountData to avoid duplicate API call
+  const { witnesses, isLoading, error, userVoteCount } = useWitnessData(loggedInUser, {
+    preloadedWitnessVotes: userAccountData?.witness_votes || undefined
+  });
 
   const currentProxy = userAccountData?.proxy || '';
-  const filteredWitnesses = filterVotes ? witnesses.filter(w => w.voted) : witnesses;
+  const filteredWitnesses = witnesses
+    .filter(w => filterVotes ? w.voted : true)
+    .filter(w => searchTerm === '' ? true : w.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const invalidateQueries = () => {
+  const invalidateQueries = async () => {
+    // Invalidate all witness-related queries
     queryClient.invalidateQueries({ queryKey: ['witnesses'] });
     queryClient.invalidateQueries({ queryKey: ['userWitnessVotes', loggedInUser] });
     queryClient.invalidateQueries({ queryKey: ['account', loggedInUser] });
+    // IMPORTANT: Also invalidate steemAccount query to refresh witness_votes
+    queryClient.invalidateQueries({ queryKey: ['steemAccount', loggedInUser] });
+    
+    // Force refetch the user account to get updated witness votes
+    await refetchUserAccount();
+  };
+
+  // Show confirmation dialog before voting
+  const confirmVote = (witnessName: string, isVoting: boolean) => {
+    setVoteConfirmation({
+      isOpen: true,
+      witnessName,
+      isVoting,
+    });
+  };
+
+  // Handle the actual vote after confirmation
+  const handleConfirmedVote = async () => {
+    const { witnessName, isVoting } = voteConfirmation;
+    setVoteConfirmation({ isOpen: false, witnessName: "", isVoting: true });
+    
+    await handleVote(witnessName, isVoting);
   };
 
   const handleVote = async (witnessName: string, isVoting: boolean) => {
@@ -75,7 +131,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
           description: "This witness vote was already submitted.",
           variant: "success",
         });
-        setTimeout(() => invalidateQueries(), 1000);
+        setTimeout(async () => await invalidateQueries(), 1000);
       }
     } finally {
       setProcessingWitness(null);
@@ -104,10 +160,10 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
         variant: "success",
       });
       
-      // Invalidate queries to refresh data
-      setTimeout(() => {
-        invalidateQueries();
-      }, 1000);
+      // Wait a moment for blockchain to process, then refresh data
+      setTimeout(async () => {
+        await invalidateQueries();
+      }, 1500);
     } catch (error: any) {
       console.error('Witness vote error:', error);
       toast({
@@ -217,10 +273,10 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
       
       if (proxy) setProxyAccount("");
       
-      // Invalidate queries to refresh data
-      setTimeout(() => {
-        invalidateQueries();
-      }, 1000);
+      // Wait a moment for blockchain to process, then refresh data
+      setTimeout(async () => {
+        await invalidateQueries();
+      }, 1500);
     } catch (error: any) {
       console.error('Proxy update error:', error);
       toast({
@@ -274,20 +330,23 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
 
         {/* Tabs */}
         <Tabs defaultValue="witnesses" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-800/50 shadow-sm border border-slate-700 rounded-lg p-1">
+          <TabsList className="grid w-full grid-cols-2 h-auto p-0 bg-transparent gap-0 rounded-xl overflow-hidden border border-slate-700/50">
             <TabsTrigger 
               value="witnesses" 
-              className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-sm sm:text-base font-medium rounded-md"
+              className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+                data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+                data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
             >
-              <Users className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Witnesses</span>
-              <span className="sm:hidden">Votes</span>
+              <Users className="w-4 h-4 mr-2 inline-block" />
+              Witnesses
             </TabsTrigger>
             <TabsTrigger 
               value="proxy" 
-              className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-sm sm:text-base font-medium rounded-md"
+              className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none transition-all duration-200
+                data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+                data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
             >
-              <Settings className="w-4 h-4 mr-2" />
+              <Settings className="w-4 h-4 mr-2 inline-block" />
               Proxy
             </TabsTrigger>
           </TabsList>
@@ -320,15 +379,53 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
                 </div>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                  <div className="flex items-center space-x-3 px-4 py-2 bg-slate-700/50 rounded-lg">
-                    <Switch
-                      id="filter-votes"
-                      checked={filterVotes}
-                      onCheckedChange={setFilterVotes}
-                    />
-                    <Label htmlFor="filter-votes" className="text-sm font-medium cursor-pointer text-slate-300">Show only my votes</Label>
+                <div className="flex flex-col gap-4">
+                  {/* Control Panel - Filter and Search */}
+                  <div className="bg-gradient-to-b from-slate-800/60 to-slate-900/40 border border-slate-700/60 rounded-xl p-3 sm:p-4 hover:border-slate-600/80 transition-all duration-200">
+                    <div className="flex flex-col gap-3">
+                      {/* First Row - Filter Toggle */}
+                      <div className="flex items-center space-x-3 px-3 py-2 bg-slate-900/40 rounded-lg border border-slate-700/40 hover:border-slate-600/60 transition-all">
+                        <Switch
+                          id="filter-votes"
+                          checked={filterVotes}
+                          onCheckedChange={setFilterVotes}
+                        />
+                        <Label htmlFor="filter-votes" className="text-sm font-medium cursor-pointer text-slate-200">Show only my votes</Label>
+                      </div>
+
+                      {/* Second Row - Search Bar */}
+                      <div className="relative group">
+                        <div className="relative flex items-center gap-3 px-3.5 py-2.5 bg-slate-900/60 border border-slate-700/50 rounded-lg transition-all duration-200">
+                          <Search className="w-4 h-4 text-slate-400 transition-colors flex-shrink-0" />
+                          <Input
+                            type="text"
+                            placeholder="Search witness by name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-0 text-white placeholder-slate-500 focus:outline-none focus:ring-0 text-sm flex-1"
+                          />
+                          {searchTerm && (
+                            <button
+                              onClick={() => setSearchTerm('')}
+                              className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0 p-1 rounded hover:bg-slate-800/50"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Results Counter */}
+                  {(filterVotes || searchTerm) && (
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-slate-800/40 to-slate-900/30 rounded-lg border border-steemit-500/20 backdrop-blur-sm">
+                      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-steemit-400 to-green-400"></div>
+                      <span className="text-xs font-medium text-slate-300">
+                        Found <span className="text-steemit-300 font-bold">{filteredWitnesses.length}</span> <span className="text-slate-400">witness{filteredWitnesses.length !== 1 ? 'es' : ''}</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Show proxy warning if user has a proxy set */}
@@ -340,6 +437,14 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
                         Proxy Active: @{currentProxy} is voting for you
                       </span>
                     </div>
+                  </div>
+                )}
+
+                {/* Show empty state if no results */}
+                {filteredWitnesses.length === 0 && !isLoading && (
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-lg p-6 text-center">
+                    <Search className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                    <p className="text-slate-400 text-sm">{searchTerm ? 'No witnesses found matching your search' : 'No witnesses found'}</p>
                   </div>
                 )}
 
@@ -368,6 +473,14 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                                <img 
+                                  src={`https://steemitimages.com/u/${witness.name}/avatar`}
+                                  alt={witness.name}
+                                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-slate-600 flex-shrink-0"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%23475569' width='64' height='64'/%3E%3Ctext x='50%25' y='50%25' font-size='32' fill='%2394a3b8' text-anchor='middle' dy='.3em'%3E%3E%3C/text%3E%3C/svg%3E`;
+                                  }}
+                                />
                                 <span className={`font-medium text-slate-300 text-sm sm:text-base ${witness.isDisabled ? 'line-through' : ''}`}>#{witness.rank}</span>
                                 <span className={`font-semibold text-white truncate text-sm sm:text-base ${witness.isDisabled ? 'line-through' : ''}`}>@{witness.name}</span>
                                 {witness.voted && (
@@ -397,6 +510,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
                                   <span>Votes: {witness.votes}</span>
                                 </div>
                                 <span className="hidden sm:inline">•</span>
+                                <span>Last Block: {witness.lastBlock}</span>
+                                <span className="hidden sm:inline">•</span>
                                 <span>Version: {witness.version}</span>
                                 <span className="hidden sm:inline">•</span>
                                 <span>Missed: {witness.missedBlocks}</span>
@@ -406,7 +521,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
                               <Button
                                 size="sm"
                                 variant={witness.voted ? "destructive" : "default"}
-                                onClick={() => handleVote(witness.name, !witness.voted)}
+                                onClick={() => confirmVote(witness.name, !witness.voted)}
                                 className={`text-xs sm:text-sm px-2 sm:px-4 ${
                                   !witness.voted 
                                     ? 'text-white' 
@@ -524,6 +639,57 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Vote/Unvote Confirmation Dialog */}
+        <AlertDialog open={voteConfirmation.isOpen} onOpenChange={(open) => !open && setVoteConfirmation({ isOpen: false, witnessName: "", isVoting: true })}>
+          <AlertDialogContent className="bg-slate-900 border border-slate-700">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white flex items-center gap-2">
+                {voteConfirmation.isVoting ? (
+                  <>
+                    <Vote className="w-5 h-5 text-[#07d7a9]" />
+                    Confirm Witness Vote
+                  </>
+                ) : (
+                  <>
+                    <X className="w-5 h-5 text-red-400" />
+                    Confirm Remove Vote
+                  </>
+                )}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-400">
+                {voteConfirmation.isVoting ? (
+                  <>
+                    Are you sure you want to vote for witness <span className="font-semibold text-[#07d7a9]">@{voteConfirmation.witnessName}</span>?
+                    <br /><br />
+                    <span className="text-slate-500 text-sm">
+                      This will add your vote to help elect this witness to produce blocks on the Steem blockchain.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to remove your vote from witness <span className="font-semibold text-red-400">@{voteConfirmation.witnessName}</span>?
+                    <br /><br />
+                    <span className="text-slate-500 text-sm">
+                      This will remove your support for this witness.
+                    </span>
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmedVote}
+                className={voteConfirmation.isVoting ? "bg-[#07d7a9] hover:bg-[#06c49a] text-white" : "bg-red-600 hover:bg-red-700 text-white"}
+              >
+                {voteConfirmation.isVoting ? "Vote" : "Remove Vote"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TooltipProvider>
   );

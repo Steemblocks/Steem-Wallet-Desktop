@@ -1,4 +1,5 @@
 import { API_CONFIG, getAllEndpoints, getPrimaryEndpoint } from '@/config/api';
+import { jsonRpcRequest } from '@/utils/httpClient';
 
 export interface SteemAccount {
   id: number;
@@ -286,44 +287,29 @@ export class SteemApiService {
       }
     }
 
-    // Try each endpoint
+    // Try each endpoint using the CORS-bypassing HTTP client
     for (let attempt = 0; attempt < endpointsToTry.length; attempt++) {
       const endpoint = endpointsToTry[attempt];
       
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.REQUEST_TIMEOUT);
-
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: method,
-            params: params,
-            id: 1,
-          }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
+        const response = await jsonRpcRequest(
+          endpoint,
+          method,
+          params,
+          API_CONFIG.REQUEST_TIMEOUT
+        );
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(response.error || 'API Error');
         }
 
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error.message || 'API Error');
-        }
-
-        return data.result;
+        return response.result;
       } catch (error) {
         lastError = error as Error;
-        console.error(`Error with endpoint ${endpoint}:`, error);
+        // Only log on last attempt or if not a common fallback scenario
+        if (attempt === endpointsToTry.length - 1) {
+          console.error(`All endpoints failed for ${method}:`, error);
+        }
       }
     }
 

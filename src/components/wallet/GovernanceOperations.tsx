@@ -4,6 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FileText, Clock, CheckCircle, XCircle, Users, ExternalLink, DollarSign, Vote, X, TrendingUp, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { steemApi, SteemProposal } from "@/services/steemApi";
@@ -79,6 +89,19 @@ const GovernanceOperations = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   
+  // Vote confirmation dialog state
+  const [voteConfirmation, setVoteConfirmation] = useState<{
+    isOpen: boolean;
+    proposalId: number;
+    proposalSubject: string;
+    isVoting: boolean; // true = vote, false = unvote
+  }>({
+    isOpen: false,
+    proposalId: 0,
+    proposalSubject: "",
+    isVoting: true,
+  });
+  
   // User votes from cached hook + local optimistic state for UI updates
   const { data: serverUserVotes = [] } = useUserProposalVotes(username);
   const { invalidateUserVotes } = useInvalidateProposals();
@@ -140,6 +163,24 @@ const GovernanceOperations = () => {
     };
     fetchSteemPerMvests();
   }, []);
+
+  // Show confirmation dialog before voting
+  const confirmProposalVote = (proposalId: number, proposalSubject: string, isVoting: boolean) => {
+    setVoteConfirmation({
+      isOpen: true,
+      proposalId,
+      proposalSubject,
+      isVoting,
+    });
+  };
+
+  // Handle the actual vote after confirmation
+  const handleConfirmedVote = async () => {
+    const { proposalId, isVoting } = voteConfirmation;
+    setVoteConfirmation({ isOpen: false, proposalId: 0, proposalSubject: "", isVoting: true });
+    
+    await handleVoteProposal(proposalId, isVoting);
+  };
 
   const handleVoteProposal = async (proposalId: number, approve: boolean) => {
     if (!isLoggedIn) {
@@ -376,19 +417,23 @@ const GovernanceOperations = () => {
       </div>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-800/50 shadow-sm border border-slate-700 rounded-lg p-1">
-          <TabsTrigger value="active" className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-sm sm:text-base font-medium rounded-md">
-            <Clock className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Active ({activeProposals.length})</span>
-            <span className="sm:hidden">Live</span>
+        <TabsList className="grid w-full grid-cols-3 h-auto p-0 bg-transparent gap-0 rounded-xl overflow-hidden border border-slate-700/50">
+          <TabsTrigger value="active" className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+            data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+            data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80">
+            <Clock className="w-4 h-4 mr-2 inline-block" />
+            Active ({activeProposals.length})
           </TabsTrigger>
-          <TabsTrigger value="completed" className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-sm sm:text-base font-medium rounded-md">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">All ({proposals.length})</span>
-            <span className="sm:hidden">All</span>
+          <TabsTrigger value="completed" className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+            data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+            data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80">
+            <CheckCircle className="w-4 h-4 mr-2 inline-block" />
+            All ({proposals.length})
           </TabsTrigger>
-          <TabsTrigger value="stats" className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-sm sm:text-base font-medium rounded-md">
-            <TrendingUp className="w-4 h-4 mr-2" />
+          <TabsTrigger value="stats" className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none transition-all duration-200
+            data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+            data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80">
+            <TrendingUp className="w-4 h-4 mr-2 inline-block" />
             Stats
           </TabsTrigger>
         </TabsList>
@@ -463,7 +508,7 @@ const GovernanceOperations = () => {
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => handleVoteProposal(proposal.proposal_id, false)}
+                              onClick={() => confirmProposalVote(proposal.proposal_id, proposal.subject, false)}
                               disabled={!isLoggedIn || processingProposalId !== null}
                               className="bg-red-950/50 border-red-900/50 text-red-400 hover:bg-red-900/50 text-xs sm:text-sm px-3 sm:px-4"
                             >
@@ -479,7 +524,7 @@ const GovernanceOperations = () => {
                           ) : (
                             <Button 
                               size="sm" 
-                              onClick={() => handleVoteProposal(proposal.proposal_id, true)}
+                              onClick={() => confirmProposalVote(proposal.proposal_id, proposal.subject, true)}
                               disabled={!isLoggedIn || processingProposalId !== null}
                               className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm px-3 sm:px-4"
                             >
@@ -639,6 +684,61 @@ const GovernanceOperations = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Vote/Unvote Confirmation Dialog */}
+      <AlertDialog open={voteConfirmation.isOpen} onOpenChange={(open) => !open && setVoteConfirmation({ isOpen: false, proposalId: 0, proposalSubject: "", isVoting: true })}>
+        <AlertDialogContent className="bg-slate-900 border border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              {voteConfirmation.isVoting ? (
+                <>
+                  <Vote className="w-5 h-5 text-green-400" />
+                  Confirm Proposal Vote
+                </>
+              ) : (
+                <>
+                  <X className="w-5 h-5 text-red-400" />
+                  Confirm Remove Vote
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              {voteConfirmation.isVoting ? (
+                <>
+                  Are you sure you want to vote for proposal <span className="font-semibold text-green-400">#{voteConfirmation.proposalId}</span>?
+                  <br /><br />
+                  <span className="text-white font-medium">"{voteConfirmation.proposalSubject}"</span>
+                  <br /><br />
+                  <span className="text-slate-500 text-sm">
+                    Your vote will help this proposal reach the funding threshold.
+                  </span>
+                </>
+              ) : (
+                <>
+                  Are you sure you want to remove your vote from proposal <span className="font-semibold text-red-400">#{voteConfirmation.proposalId}</span>?
+                  <br /><br />
+                  <span className="text-white font-medium">"{voteConfirmation.proposalSubject}"</span>
+                  <br /><br />
+                  <span className="text-slate-500 text-sm">
+                    This will remove your support for this proposal.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmedVote}
+              className={voteConfirmation.isVoting ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}
+            >
+              {voteConfirmation.isVoting ? "Vote For" : "Remove Vote"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

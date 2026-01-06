@@ -51,30 +51,30 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
 
   // Load wallet data and expiring delegations when account changes
   useEffect(() => {
+    if (!account) return;
+    
     const loadWalletData = async () => {
-      if (account) {
-        const data = await formatWalletData(account);
-        setWalletData(data);
-        
-        // Fetch expiring delegations (cancelled delegations in cooldown period)
-        try {
-          const expiringDelegations = await steemApi.getExpiringVestingDelegations(account.name);
-          if (expiringDelegations && expiringDelegations.length > 0) {
-            const steemPerMvests = await getSteemPerMvests();
-            // Sum up all expiring delegations in VESTS and convert to SP
-            const totalExpiringVests = expiringDelegations.reduce((sum, delegation) => {
-              const vests = parseFloat(delegation.vesting_shares?.split(' ')[0] || '0');
-              return sum + vests;
-            }, 0);
-            const expiringSP = vestsToSteem(totalExpiringVests, steemPerMvests);
-            setExpiringDelegationsSP(expiringSP);
-          } else {
-            setExpiringDelegationsSP(0);
-          }
-        } catch (error) {
-          console.error('Error fetching expiring delegations:', error);
+      const data = await formatWalletData(account);
+      setWalletData(data);
+      
+      // Fetch expiring delegations (cancelled delegations in cooldown period)
+      try {
+        const expiringDelegations = await steemApi.getExpiringVestingDelegations(account.name);
+        if (expiringDelegations && expiringDelegations.length > 0) {
+          const steemPerMvests = await getSteemPerMvests();
+          // Sum up all expiring delegations in VESTS and convert to SP
+          const totalExpiringVests = expiringDelegations.reduce((sum, delegation) => {
+            const vests = parseFloat(delegation.vesting_shares?.split(' ')[0] || '0');
+            return sum + vests;
+          }, 0);
+          const expiringSP = vestsToSteem(totalExpiringVests, steemPerMvests);
+          setExpiringDelegationsSP(expiringSP);
+        } else {
           setExpiringDelegationsSP(0);
         }
+      } catch (error) {
+        console.error('Error fetching expiring delegations:', error);
+        setExpiringDelegationsSP(0);
       }
     };
     loadWalletData();
@@ -171,6 +171,7 @@ const TransferPopup = ({ isOpen, onClose, username, defaultOperation = 'transfer
       setAutoVest(false);
       setCurrentRoutes([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, defaultOperation, defaultCurrency]);
 
   // Check if currency should be locked (only for transfer to savings with a default currency, not withdraw)

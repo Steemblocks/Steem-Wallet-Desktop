@@ -25,6 +25,13 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
   // CRITICAL: Track transaction submission to prevent duplicate transactions
   const cancelSubmittedRef = useRef(false);
 
+  // Parse values (safe even if account is null)
+  const vestingWithdrawRate = parseFloat(account?.vesting_withdraw_rate?.split(' ')[0] || '0');
+  const nextWithdrawal = account ? new Date(account.next_vesting_withdrawal) : new Date('1970-01-01');
+  
+  // Check if power down is active
+  const isPowerDownActive = vestingWithdrawRate > 0 && nextWithdrawal > new Date('1970-01-01');
+
   // Load credentials from secure storage - reload when account changes
   useEffect(() => {
     const loadCredentials = async () => {
@@ -39,22 +46,7 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
     loadCredentials();
   }, [account?.name]); // Re-run when account changes
 
-  if (!account) return null;
-
-  const vestingWithdrawRate = parseFloat(account.vesting_withdraw_rate?.split(' ')[0] || '0');
-  const nextWithdrawal = new Date(account.next_vesting_withdrawal);
-  const withdrawn = parseFloat(account.withdrawn || '0');
-  const toWithdraw = parseFloat(account.to_withdraw || '0');
-
-  // Check if power down is active
-  const isPowerDownActive = vestingWithdrawRate > 0 && nextWithdrawal > new Date('1970-01-01');
-
-  // Calculate days until next withdrawal
-  const daysUntilNext = getDaysUntilNextWithdrawal(account.next_vesting_withdrawal);
-
-  // Check if current user is viewing their own account
-  const isOwnAccount = username && account.name === username;
-
+  // Convert VESTS to STEEM
   useEffect(() => {
     const convertVestsToSteem = async () => {
       if (isPowerDownActive && vestingWithdrawRate > 0) {
@@ -72,6 +64,18 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
 
     convertVestsToSteem();
   }, [isPowerDownActive, vestingWithdrawRate]);
+
+  // Early return after all hooks
+  if (!account) return null;
+
+  const withdrawn = parseFloat(account.withdrawn || '0');
+  const toWithdraw = parseFloat(account.to_withdraw || '0');
+
+  // Calculate days until next withdrawal
+  const daysUntilNext = getDaysUntilNextWithdrawal(account.next_vesting_withdrawal);
+
+  // Check if current user is viewing their own account
+  const isOwnAccount = username && account.name === username;
 
   const handleCancelPowerDown = async () => {
     if (!username || !isPowerDownActive) return;

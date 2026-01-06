@@ -253,3 +253,66 @@ pub fn clear_sensitive_data() -> Result<(), String> {
     // Clear any in-memory sensitive data
     Ok(())
 }
+
+/// Response for HTTP POST requests
+#[derive(Serialize, Deserialize)]
+pub struct HttpPostResponse {
+    pub success: bool,
+    pub status: u16,
+    pub body: Option<String>,
+    pub error: Option<String>,
+    pub latency_ms: u64,
+}
+
+/// Tauri command to make HTTP POST request (bypasses CORS)
+/// Used for testing node connectivity and latency
+#[tauri::command]
+pub async fn http_post(url: String, body: String) -> Result<HttpPostResponse, String> {
+    let start = std::time::Instant::now();
+    
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    match client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .body(body)
+        .send()
+        .await
+    {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let latency_ms = start.elapsed().as_millis() as u64;
+            
+            match response.text().await {
+                Ok(text) => Ok(HttpPostResponse {
+                    success: status >= 200 && status < 300,
+                    status,
+                    body: Some(text),
+                    error: None,
+                    latency_ms,
+                }),
+                Err(e) => Ok(HttpPostResponse {
+                    success: false,
+                    status,
+                    body: None,
+                    error: Some(format!("Failed to read response: {}", e)),
+                    latency_ms,
+                }),
+            }
+        }
+        Err(e) => {
+            let latency_ms = start.elapsed().as_millis() as u64;
+            Ok(HttpPostResponse {
+                success: false,
+                status: 0,
+                body: None,
+                error: Some(format!("Request failed: {}", e)),
+                latency_ms,
+            })
+        }
+    }
+}

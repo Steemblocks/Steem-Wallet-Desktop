@@ -519,57 +519,49 @@ class SteemWebSocketService {
    * Fetch power meter data once (for initial load)
    * Calls the 4 individual API methods and combines results
    */
-  fetchPowerMeterData(username: string, timeoutMs: number = 10000): Promise<PowerMeterData> {
-    return new Promise(async (resolve, reject) => {
-      if (this.ws?.readyState !== WebSocket.OPEN) {
-        reject(new Error('WebSocket not connected'));
-        return;
-      }
+  async fetchPowerMeterData(username: string, timeoutMs: number = 10000): Promise<PowerMeterData> {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected');
+    }
 
-      try {
-        // Call all 4 APIs in parallel
-        const [accountResult, rcResult, rewardFundResult, medianPriceResult] = await Promise.all([
-          this.callApi('database_api.find_accounts', { accounts: [username] }, timeoutMs),
-          this.callApi('rc_api.find_rc_accounts', { accounts: [username] }, timeoutMs),
-          this.callApi('condenser_api.get_reward_fund', ['post'], timeoutMs),
-          this.callApi('condenser_api.get_current_median_history_price', [], timeoutMs),
-        ]);
+    // Call all 4 APIs in parallel
+    const [accountResult, rcResult, rewardFundResult, medianPriceResult] = await Promise.all([
+      this.callApi('database_api.find_accounts', { accounts: [username] }, timeoutMs),
+      this.callApi('rc_api.find_rc_accounts', { accounts: [username] }, timeoutMs),
+      this.callApi('condenser_api.get_reward_fund', ['post'], timeoutMs),
+      this.callApi('condenser_api.get_current_median_history_price', [], timeoutMs),
+    ]);
 
-        const account = accountResult?.accounts?.[0];
-        const rcAccount = rcResult?.rc_accounts?.[0];
+    const account = accountResult?.accounts?.[0];
+    const rcAccount = rcResult?.rc_accounts?.[0];
 
-        if (!account) {
-          reject(new Error('Account not found'));
-          return;
-        }
+    if (!account) {
+      throw new Error('Account not found');
+    }
 
-        resolve({
-          username,
-          account: {
-            vesting_shares: account.vesting_shares,
-            received_vesting_shares: account.received_vesting_shares,
-            delegated_vesting_shares: account.delegated_vesting_shares,
-            vesting_withdraw_rate: account.vesting_withdraw_rate,
-            voting_manabar: account.voting_manabar,
-            downvote_manabar: account.downvote_manabar,
-          },
-          rc_account: rcAccount ? {
-            max_rc: rcAccount.max_rc,
-            rc_manabar: rcAccount.rc_manabar,
-          } : { max_rc: '0', rc_manabar: { current_mana: '0', last_update_time: 0 } },
-          reward_fund: {
-            reward_balance: rewardFundResult?.reward_balance || '0 STEEM',
-            recent_claims: rewardFundResult?.recent_claims || '1',
-          },
-          median_history_price: {
-            base: medianPriceResult?.base || '0 SBD',
-            quote: medianPriceResult?.quote || '1 STEEM',
-          },
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    return {
+      username,
+      account: {
+        vesting_shares: account.vesting_shares,
+        received_vesting_shares: account.received_vesting_shares,
+        delegated_vesting_shares: account.delegated_vesting_shares,
+        vesting_withdraw_rate: account.vesting_withdraw_rate,
+        voting_manabar: account.voting_manabar,
+        downvote_manabar: account.downvote_manabar,
+      },
+      rc_account: rcAccount ? {
+        max_rc: rcAccount.max_rc,
+        rc_manabar: rcAccount.rc_manabar,
+      } : { max_rc: '0', rc_manabar: { current_mana: '0', last_update_time: 0 } },
+      reward_fund: {
+        reward_balance: rewardFundResult?.reward_balance || '0 STEEM',
+        recent_claims: rewardFundResult?.recent_claims || '1',
+      },
+      median_history_price: {
+        base: medianPriceResult?.base || '0 SBD',
+        quote: medianPriceResult?.quote || '1 STEEM',
+      },
+    };
   }
 
   /**

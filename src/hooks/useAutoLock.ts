@@ -134,6 +134,16 @@ export const useAutoLock = ({
     };
   }, [enabled, resetTimer, clearTimers]);
 
+  // Reset timers when timeout value changes (user preference updated)
+  const prevTimeoutRef = useRef(timeout);
+  useEffect(() => {
+    if (enabled && prevTimeoutRef.current !== timeout) {
+      prevTimeoutRef.current = timeout;
+      // Timeout changed while hook is active, reset the timer with new duration
+      resetTimer();
+    }
+  }, [enabled, timeout, resetTimer]);
+
   // Get time since last activity
   const getTimeSinceLastActivity = useCallback(() => {
     return Date.now() - lastActivityRef.current;

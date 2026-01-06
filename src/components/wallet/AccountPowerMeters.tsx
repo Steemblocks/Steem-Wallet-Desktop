@@ -20,7 +20,7 @@ const PowerBar = memo(({
 }) => {
   const percentage = Math.min(value, 100);
   const isLow = percentage < 30;
-  const isFull = percentage >= 99.5;
+  const isFull = percentage >= 100;
   
   return (
     <div className="flex items-center gap-3 group">
@@ -58,7 +58,7 @@ const PowerBar = memo(({
           />
           {/* Main bar */}
           <div 
-            className={`h-full rounded-full relative ${color} transition-all duration-700 ease-out overflow-hidden`}
+            className={`h-full rounded-full relative ${color} transition-all duration-700 ease-in-out overflow-hidden`}
             style={{ width: `${percentage}%` }}
           >
             {/* Gradient overlay for depth */}
@@ -78,7 +78,7 @@ const PowerBar = memo(({
                         height: `${3 + (i % 3)}px`,
                         left: `${15 + i * 15}%`,
                         bottom: '-4px',
-                        animation: `bubble ${1.5 + (i * 0.3)}s ease-in infinite ${i * 0.2}s`,
+                        animation: `bubble ${1.8 + (i * 0.25)}s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite ${i * 0.15}s`,
                       }}
                     />
                   ))}
@@ -89,7 +89,7 @@ const PowerBar = memo(({
                   className="absolute inset-y-0 w-8 rounded-full will-change-transform"
                   style={{
                     background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)',
-                    animation: 'scanBeam 2s ease-in-out infinite',
+                    animation: 'scanBeam 2.5s cubic-bezier(0.25, 0.1, 0.25, 1) infinite',
                     left: 0,
                   }}
                 />
@@ -98,9 +98,10 @@ const PowerBar = memo(({
                 <div 
                   className="absolute top-0 left-0 right-0 h-[2px]"
                   style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 25%, transparent 50%, rgba(255,255,255,0.8) 75%, transparent 100%)',
-                    backgroundSize: '200% 100%',
-                    animation: 'waveShine 1.5s linear infinite',
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.9) 25%, transparent 50%, rgba(255,255,255,0.9) 75%, transparent 100%)',
+                    backgroundSize: '400% 100%',
+                    backgroundPosition: '200% 0',
+                    animation: 'waveShine 4s linear infinite',
                   }}
                 />
               </>

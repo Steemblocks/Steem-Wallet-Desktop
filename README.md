@@ -2,6 +2,10 @@
 
 A secure, cross-platform desktop wallet for the Steem blockchain built with Tauri, React, and Rust.
 
+![Version](https://img.shields.io/badge/version-0.1.3-blue)
+![License](https://img.shields.io/badge/license-Non--Commercial-green)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+
 ## Overview
 
 Steem Wallet Desktop is an open-source cryptocurrency wallet designed for managing STEEM tokens securely. The application uses a zero-knowledge architecture where private keys are encrypted and never leave your device.
@@ -19,15 +23,31 @@ Steem Wallet Desktop is an open-source cryptocurrency wallet designed for managi
 ### Wallet Operations
 - STEEM and SBD token transfers
 - Power up and power down operations
-- Delegation management
+- Delegation management (create, edit, remove delegations)
 - Witness voting
 - Account history and transaction tracking
 - Real-time balance and market data
+- Internal market trading (STEEM/SBD)
+
+### Security Features
+- **App Lock Password** - Secure your wallet with a master password
+- **AES-256-GCM Encryption** - Military-grade encryption for all private keys
+- **Argon2id Key Derivation** - GPU-resistant password hashing
+- **Auto-Lock** - Configurable inactivity timeout (optional)
+- **Rate Limiting** - Protection against brute-force attacks
+- **Local-Only Storage** - Keys never leave your device
 
 ### User Interface
+- Modern dark theme with clean design
 - Responsive design for various screen sizes
-- Dark and light theme support
-- Accessible components following WCAG guidelines
+- Multi-account support
+- Terms and conditions agreement on login
+- Login via Master Password or Private Keys
+
+### Account Management
+- Multi-account support with easy switching
+- Import accounts using Master Password or individual Private Keys
+- Secure logout with complete data clearance
 
 ---
 
@@ -134,7 +154,9 @@ Encrypted Data -> Application Data Directory
 
 - Sensitive data is held in memory during active sessions
 - Session data is cleared when the application closes
-- Auto-lock feature clears session after configurable inactivity period
+- Auto-lock feature clears session after configurable inactivity period (optional, user-enabled)
+- Password cache automatically expires after 30 minutes of no key operations
+- Logout completely clears all encrypted keys, password cache, and session data
 - Password re-entry required to decrypt keys after lock
 
 ---
@@ -191,11 +213,19 @@ Steem-Wallet-Desktop/
 │   │   ├── wallet/           # Wallet-specific components
 │   │   └── layout/           # Layout components
 │   ├── services/
-│   │   ├── secureStorage.ts  # Storage abstraction layer
-│   │   ├── steemApi.ts       # Blockchain API client
-│   │   └── steemOperations.ts
-│   ├── hooks/                # React hooks
-│   └── contexts/             # React contexts
+│   │   ├── secureStorage.ts      # Storage abstraction layer
+│   │   ├── encryptedKeyStorage.ts # Encrypted key management
+│   │   ├── accountManager.ts     # Multi-account management
+│   │   ├── appLockService.ts     # App lock password service
+│   │   ├── steemApi.ts           # Blockchain API client
+│   │   └── steemOperations.ts    # Transaction operations
+│   ├── hooks/                    # React hooks
+│   │   ├── useAutoLock.ts        # Auto-lock functionality
+│   │   ├── useDelegations.ts     # Delegation management
+│   │   └── ...
+│   ├── utils/
+│   │   └── security.ts           # Security utilities & rate limiting
+│   └── contexts/                 # React contexts
 │
 ├── src-tauri/                # Rust backend
 │   ├── src/
@@ -330,10 +360,44 @@ For commercial licensing inquiries, contact the maintainers.
 
 ## Links
 
-- Repository: https://github.com/Steemblocks/Steem-Wallet-Desktop
+- Repository: https://github.com/steemblocks/Steem-Wallet-Desktop
 - Steem Blockchain: https://steem.com
 - Tauri Framework: https://tauri.app
 
 ---
 
-Version: 0.1.2
+## Changelog
+
+### Version 0.1.3 (January 2026)
+**Security & Authentication**
+- Added Terms and Conditions dialog with clickable link in login screen
+- Login now supports both Master Password and Private Key authentication
+- Enhanced logout security - properly clears all encrypted keys and password cache
+- Added Terms acceptance checkbox requirement before login
+
+**UI/UX Improvements**
+- Removed focus ring artifacts from all input fields (App Lock, Login, Delegation, Market screens)
+- Standardized primary action buttons to blue color scheme
+- Improved input field styling with clean dark theme borders
+
+**Code Quality**
+- Fixed duplicate code in LoginDialog component
+- Cleaned up import statements
+- Improved error messages for credential validation
+
+### Version 0.1.2
+- Initial multi-account support
+- Encrypted key storage implementation
+- App lock password feature
+- Auto-lock functionality (user-configurable)
+
+### Version 0.1.1
+- Basic wallet operations
+- STEEM/SBD transfers
+- Power up/down operations
+- Witness voting
+
+### Version 0.1.0
+- Initial release
+- Core wallet functionality
+- Secure storage architecture

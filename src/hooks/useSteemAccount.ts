@@ -31,7 +31,9 @@ export const useSteemAccount = (username: string) => {
     queryKey: ['steemAccount', username],
     queryFn: () => steemApi.getAccount(username),
     enabled: !!username,
-    refetchInterval: 60000, // Refetch every 60 seconds (WalletDataContext handles real-time)
+    // Disabled automatic polling - WalletDataContext handles real-time updates via WebSocket
+    // Components can still call refetch() manually when needed after operations
+    refetchInterval: false,
     staleTime: 30000, // Consider data stale after 30 seconds
     gcTime: 120000, // Keep in cache for 2 minutes
     refetchOnWindowFocus: false,

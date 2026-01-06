@@ -6,7 +6,7 @@ export const API_CONFIG = {
     'https://api.moecki.online',
     'https://steemd.steemworld.org',
     'https://api.pennsif.net',
-    'https://api.justyy.com'
+    'https://api.steemit.com'
   ],
   
   // Default endpoint index
@@ -56,7 +56,7 @@ export const STEEM_NODES: SteemNode[] = [
     name: 'Justyy',
     location: 'Global',
     description: 'Community node maintained by @justyy',
-    isRecommended: true
+    isRecommended: false
   },
   {
     url: 'https://api.wherein.io',
@@ -84,7 +84,7 @@ export const STEEM_NODES: SteemNode[] = [
     name: 'Steemit (Official)',
     location: 'Global',
     description: 'Official Steemit API node',
-    isRecommended: false
+    isRecommended: true
   },
   {
     url: 'https://api.steemitdev.com',

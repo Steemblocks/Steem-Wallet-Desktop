@@ -96,20 +96,19 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
       }
       
       // Parse minimum delegation error
-      let errorMessage = "Failed to update delegation. Please try again.";
-      
-      if (error?.message?.includes('min_delegation')) {
-        const match = error.message.match(/"amount":"(\d+)"/);
-        if (match) {
-          const minVests = parseInt(match[1]) / 1000000;
-          const minSP = (minVests * steemPerMvests) / 1000000;
-          errorMessage = `Minimum delegation required: ${minSP.toFixed(3)} SP. Please increase your delegation amount or remove it completely.`;
-        } else {
-          errorMessage = "The delegation amount is below the minimum required. Please try a larger amount or remove the delegation.";
+      const getErrorMessage = (): string => {
+        if (error?.message?.includes('min_delegation')) {
+          const match = error.message.match(/"amount":"(\d+)"/);
+          if (match) {
+            const minVests = parseInt(match[1]) / 1000000;
+            const minSP = (minVests * steemPerMvests) / 1000000;
+            return `Minimum delegation required: ${minSP.toFixed(3)} SP. Please increase your delegation amount or remove it completely.`;
+          }
+          return "The delegation amount is below the minimum required. Please try a larger amount or remove the delegation.";
         }
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
+        return error?.message || "Failed to update delegation. Please try again.";
+      };
+      const errorMessage = getErrorMessage();
       
       toast({
         title: "Operation Failed",
@@ -126,7 +125,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
     const activeKey = await getDecryptedKey(delegator, 'active');
     const ownerKey = await getDecryptedKey(delegator, 'owner');
     
-    let privateKeyString = activeKey || ownerKey;
+    const privateKeyString = activeKey || ownerKey;
     
     if (!privateKeyString) {
       toast({

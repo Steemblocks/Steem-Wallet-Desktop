@@ -328,7 +328,7 @@ const MarketOperations = () => {
           <TabsTrigger 
             value="trade" 
             className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
-              data-[state=active]:bg-gradient-to-b data-[state=active]:from-[#07d7a9] data-[state=active]:to-[#06c49a] data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-[#07d7a9]/20
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
               data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
           >
             <BarChart3 className="w-4 h-4 mr-2 inline-block" />
@@ -337,7 +337,7 @@ const MarketOperations = () => {
           <TabsTrigger 
             value="orderbook" 
             className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
-              data-[state=active]:bg-gradient-to-b data-[state=active]:from-[#07d7a9] data-[state=active]:to-[#06c49a] data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-[#07d7a9]/20
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
               data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
           >
             <DollarSign className="w-4 h-4 mr-2 inline-block" />
@@ -346,7 +346,7 @@ const MarketOperations = () => {
           <TabsTrigger 
             value="history" 
             className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none transition-all duration-200
-              data-[state=active]:bg-gradient-to-b data-[state=active]:from-[#07d7a9] data-[state=active]:to-[#06c49a] data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-[#07d7a9]/20
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
               data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
           >
             <Clock className="w-4 h-4 mr-2 inline-block" />
@@ -430,7 +430,7 @@ const MarketOperations = () => {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.000"
-                    className="bg-slate-900 border-slate-600 text-white text-lg h-12 pr-20 focus:border-[#07d7a9] focus:ring-[#07d7a9]/20"
+                    className="bg-slate-900 border-slate-600 text-white text-lg h-12 pr-20 focus:border-slate-600 focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:ring-offset-transparent focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:border-slate-600 transition-all !ring-0 !ring-offset-0 !outline-none shadow-none focus:shadow-none"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">
                     STEEM
@@ -460,7 +460,7 @@ const MarketOperations = () => {
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="0.000000"
                     step="0.000001"
-                    className="bg-slate-900 border-slate-600 text-white text-lg h-12 pr-16 focus:border-[#07d7a9] focus:ring-[#07d7a9]/20"
+                    className="bg-slate-900 border-slate-600 text-white text-lg h-12 pr-16 focus:border-slate-600 focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:ring-offset-transparent focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:border-slate-600 transition-all !ring-0 !ring-offset-0 !outline-none shadow-none focus:shadow-none"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">
                     SBD
@@ -512,7 +512,7 @@ const MarketOperations = () => {
                 onClick={handleTradeOrder} 
                 className={`w-full h-12 text-white text-base font-semibold transition-all ${
                   tradeType === "buy" 
-                    ? "bg-green-600 hover:bg-green-500 shadow-lg shadow-green-600/20" 
+                    ? "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/20" 
                     : "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-600/20"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 disabled={true} // Temporarily disabled - market trading under development

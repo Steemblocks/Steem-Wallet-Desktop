@@ -151,22 +151,24 @@ const DelegationOperations = () => {
         <p className="text-slate-400 text-sm">Manage your STEEM Power delegations and help the community grow</p>
       </div>
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-800/50 shadow-sm border border-slate-700 rounded-lg p-1">
+        <TabsList className="grid w-full grid-cols-2 h-auto p-0 bg-transparent gap-0 rounded-xl overflow-hidden border border-slate-700/50">
           <TabsTrigger 
             value="overview" 
-            className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-xs sm:text-sm font-medium rounded-md"
+            className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+              data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
           >
-            <TrendingUp className="w-4 h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Overview</span>
-            <span className="sm:hidden">Stats</span>
+            <TrendingUp className="w-4 h-4 mr-2 inline-block" />
+            Overview
           </TabsTrigger>
           <TabsTrigger 
             value="outgoing" 
-            className="h-full data-[state=active]:text-white data-[state=active]:bg-steemit-500 data-[state=inactive]:text-slate-300 text-xs sm:text-sm font-medium rounded-md"
+            className="relative py-3.5 px-4 text-sm sm:text-base font-semibold rounded-none transition-all duration-200
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+              data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80"
           >
-            <ArrowRight className="w-4 h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Outgoing</span>
-            <span className="sm:hidden">Out</span>
+            <ArrowRight className="w-4 h-4 mr-2 inline-block" />
+            Outgoing
           </TabsTrigger>
         </TabsList>
 
@@ -277,7 +279,7 @@ const DelegationOperations = () => {
                         value={delegateRecipient}
                         onChange={(e) => setDelegateRecipient(e.target.value)}
                         placeholder="username"
-                        className="bg-slate-900/50 border-slate-600 text-white pl-8 focus:border-steemit-500 focus:ring-steemit-500/20"
+                        className="bg-slate-900/50 border-slate-600 text-white pl-8 focus:border-slate-600 focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:ring-offset-transparent focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:border-slate-600 transition-all !ring-0 !ring-offset-0 !outline-none shadow-none focus:shadow-none"
                       />
                     </div>
                   </div>
@@ -304,7 +306,7 @@ const DelegationOperations = () => {
                         step="0.001"
                         min="1"
                         max={availableSP}
-                        className="bg-slate-900/50 border-slate-600 text-white pr-12 focus:border-steemit-500 focus:ring-steemit-500/20"
+                        className="bg-slate-900/50 border-slate-600 text-white pr-12 focus:border-slate-600 focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:ring-offset-transparent focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:border-slate-600 transition-all !ring-0 !ring-offset-0 !outline-none shadow-none focus:shadow-none"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">SP</span>
                     </div>
@@ -341,7 +343,7 @@ const DelegationOperations = () => {
                 {/* Submit Button */}
                 <Button 
                   onClick={handleDelegate} 
-                  className="w-full h-11 text-white font-medium text-sm sm:text-base bg-gradient-to-r from-steemit-500 to-steemit-600 hover:from-steemit-600 hover:to-steemit-700 shadow-lg shadow-steemit-500/20 transition-all duration-200"
+                  className="w-full h-11 text-white font-medium text-sm sm:text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/20 transition-all duration-200"
                   disabled={!delegateRecipient || !delegateAmount || parseFloat(delegateAmount) < 0.5 || parseFloat(delegateAmount) > availableSP}
                 >
                   <Handshake className="w-4 h-4 mr-2" />

@@ -148,18 +148,26 @@ textarea::placeholder {
   overflow: visible !important;
 }
 
-/* Power meter animations - GPU accelerated */
+/* Power meter animations - GPU accelerated with smooth easing */
 @keyframes bubble {
   0% {
     transform: translateY(0) scale(1) translateZ(0);
-    opacity: 0.7;
+    opacity: 0.6;
+  }
+  25% {
+    transform: translateY(-4px) scale(0.95) translateZ(0);
+    opacity: 0.85;
   }
   50% {
-    transform: translateY(-5px) scale(0.8) translateZ(0);
+    transform: translateY(-8px) scale(0.8) translateZ(0);
     opacity: 0.9;
   }
+  75% {
+    transform: translateY(-10px) scale(0.6) translateZ(0);
+    opacity: 0.4;
+  }
   100% {
-    transform: translateY(-10px) scale(0.5) translateZ(0);
+    transform: translateY(-14px) scale(0.4) translateZ(0);
     opacity: 0;
   }
 }
@@ -169,11 +177,14 @@ textarea::placeholder {
     transform: translateX(-100%) translateZ(0);
     opacity: 0;
   }
-  20% {
+  15% {
+    opacity: 0.8;
+  }
+  50% {
     opacity: 1;
   }
-  80% {
-    opacity: 1;
+  85% {
+    opacity: 0.8;
   }
   100% {
     transform: translateX(400%) translateZ(0);

@@ -423,13 +423,21 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="set-properties" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-slate-900/50 border border-slate-700">
-            <TabsTrigger value="set-properties" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">Set Properties (HF20+)</TabsTrigger>
-            <TabsTrigger value="witness-update" className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">Witness Update</TabsTrigger>
-            <TabsTrigger value="create-proposal" disabled={hasProposals} className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">
+          <TabsList className="grid w-full grid-cols-4 h-auto p-0 bg-transparent gap-0 rounded-xl overflow-hidden border border-slate-700/50">
+            <TabsTrigger value="set-properties" className="relative py-3.5 px-4 text-sm font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+              data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80">Set Properties (HF20+)</TabsTrigger>
+            <TabsTrigger value="witness-update" className="relative py-3.5 px-4 text-sm font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+              data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80">Witness Update</TabsTrigger>
+            <TabsTrigger value="create-proposal" disabled={hasProposals} className="relative py-3.5 px-4 text-sm font-semibold rounded-none border-r border-slate-700/50 transition-all duration-200
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+              data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed">
               {hasProposals ? 'Has Proposals' : 'Create Proposal'}
             </TabsTrigger>
-            <TabsTrigger value="remove-proposal" disabled={!hasProposals} className="data-[state=active]:bg-steemit-500 data-[state=active]:text-white data-[state=inactive]:text-slate-300 text-xs sm:text-sm">
+            <TabsTrigger value="remove-proposal" disabled={!hasProposals} className="relative py-3.5 px-4 text-sm font-semibold rounded-none transition-all duration-200
+              data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20
+              data-[state=inactive]:bg-slate-800/60 data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed">
               Remove Proposal
             </TabsTrigger>
           </TabsList>

@@ -11,11 +11,12 @@ import React, {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { steemApi, SteemAccount } from "@/services/steemApi";
 import { MarketPriceData, PricesData } from "@/services/priceApi";
-import { getSteemPerMvests, vestsToSteem } from "@/utils/utility";
+import { getSteemPerMvests, vestsToSteem, updateSteemPerMvestsCache } from "@/utils/utility";
 import { SecureStorageFactory } from "@/services/secureStorage";
 import { getPrimaryEndpoint } from "@/config/api";
 import { steemWebSocket, GlobalPropsData, PowerMeterData as WsPowerMeterData } from "@/services/steemWebSocket";
 import { dataCache } from "@/services/dataCache";
+import { jsonRpcRequest } from "@/utils/httpClient";
 
 // ===== Types =====
 export interface WalletData {
@@ -240,52 +241,46 @@ const fetchPriceFromSteemMarket = async (): Promise<PricesData> => {
   };
 
   try {
-    const response = await fetch(getPrimaryEndpoint(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method: "condenser_api.get_ticker",
-        params: [],
-        id: 1,
-      }),
-    });
+    // Use the CORS-bypassing HTTP client
+    const response = await jsonRpcRequest(
+      getPrimaryEndpoint(),
+      "condenser_api.get_ticker",
+      []
+    );
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.result) {
-        // The ticker gives us SBD/STEEM price
-        // latest is the price of 1 STEEM in SBD
-        const sbdPerSteem = parseFloat(data.result.latest) || 1;
+    if (response.ok && response.result) {
+      const result = response.result;
+      // The ticker gives us SBD/STEEM price
+      // latest is the price of 1 STEEM in SBD
+      const sbdPerSteem = parseFloat(result.latest) || 1;
 
-        // Approximate USD price (SBD is roughly pegged to $1)
-        // If 1 STEEM = 0.25 SBD, then STEEM price in USD ≈ $0.25
-        const steemPriceUsd = sbdPerSteem;
+      // Approximate USD price (SBD is roughly pegged to $1)
+      // If 1 STEEM = 0.25 SBD, then STEEM price in USD ≈ $0.25
+      const steemPriceUsd = sbdPerSteem;
 
-        return {
-          steem: {
-            price: steemPriceUsd,
-            priceChange24h: parseFloat(data.result.percent_change) || 0,
-            marketCap: 0,
-            volume24h: parseFloat(data.result.steem_volume) || 0,
-            high24h: 0,
-            low24h: 0,
-            image: "",
-            lastUpdated: new Date().toISOString(),
-          },
-          sbd: {
-            price: 1.0, // SBD is pegged to ~$1
-            priceChange24h: 0,
-            marketCap: 0,
-            volume24h: parseFloat(data.result.sbd_volume) || 0,
-            high24h: 0,
-            low24h: 0,
-            image: "",
-            lastUpdated: new Date().toISOString(),
-          },
-          lastFetched: Date.now(),
-        };
-      }
+      return {
+        steem: {
+          price: steemPriceUsd,
+          priceChange24h: parseFloat(result.percent_change) || 0,
+          marketCap: 0,
+          volume24h: parseFloat(result.steem_volume) || 0,
+          high24h: 0,
+          low24h: 0,
+          image: "",
+          lastUpdated: new Date().toISOString(),
+        },
+        sbd: {
+          price: 1.0, // SBD is pegged to ~$1
+          priceChange24h: 0,
+          marketCap: 0,
+          volume24h: parseFloat(result.sbd_volume) || 0,
+          high24h: 0,
+          low24h: 0,
+          image: "",
+          lastUpdated: new Date().toISOString(),
+        },
+        lastFetched: Date.now(),
+      };
     }
   } catch (error) {
     console.error("Error fetching from Steem market:", error);
@@ -565,6 +560,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
       const totalVestingShares = parseFloat(globalProps.total_vesting_shares.split(' ')[0]);
       const steemPerMvests = (totalVestingFund / totalVestingShares) * 1000000;
 
+      // Update the utility cache so other parts of the app use the same value
+      updateSteemPerMvestsCache(steemPerMvests);
+
       setData(prev => ({
         ...prev,
         steemPerMvests,
@@ -726,18 +724,20 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         // Cache wallet data
         dataCache.cacheWalletData(username, walletData).catch(console.warn);
         
-        setLoadingProgress(40);
+        setLoadingProgress(50);
 
-        // Stage 3: Fetch delegations and witnesses in parallel (60%)
-        setLoadingStage("Loading delegations & witnesses...");
+        // Stage 3: Fetch delegations and power meter data in parallel (80%)
+        // NOTE: Witnesses and account history are now lazy-loaded when user visits those tabs
+        setLoadingStage("Loading delegations...");
 
-        const [delegationsResult, witnessesResult] =
-          await Promise.all([
-            steemApi.getVestingDelegations(username).catch(() => []),
-            steemApi.getWitnessesByVote(null, 150).catch(() => []),
-          ]);
+        const [delegationsResult, wsPowerMeterData] = await Promise.all([
+          steemApi.getVestingDelegations(username).catch(() => []),
+          steemWebSocket.isConnected() 
+            ? steemWebSocket.fetchPowerMeterData(username).catch(() => null)
+            : Promise.resolve(null)
+        ]);
 
-        setLoadingProgress(60);
+        setLoadingProgress(80);
 
         // Format delegations
         const outgoingDelegations = delegationsResult
@@ -752,57 +752,19 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
         // Cache delegations
         dataCache.cacheDelegations(username, outgoingDelegations).catch(console.warn);
 
-        // Format witnesses
-        const userWitnessVotes = account.witness_votes || [];
-        const witnesses = witnessesResult.map((witness: any, index: number) => {
-          const isDisabledByKey = isWitnessDisabledByKey(witness);
-          const hasInvalidVer = hasInvalidVersion(witness);
-          return {
-            name: witness.owner,
-            votes: formatVotesInMillions(witness.votes),
-            voted: userWitnessVotes.includes(witness.owner),
-            rank: index + 1,
-            version: witness.running_version,
-            url: witness.url,
-            missedBlocks: witness.total_missed,
-            lastBlock: witness.last_confirmed_block_num,
-            signing_key: witness.signing_key,
-            isDisabledByKey,
-            hasInvalidVersion: hasInvalidVer,
-            isDisabled: isDisabledByKey || hasInvalidVer,
-          };
-        });
-        
-        // Cache witnesses
-        dataCache.cacheWitnesses(witnesses).catch(console.warn);
-
-        setLoadingProgress(70);
-        setLoadingStage("Loading history & power data...");
-
-        // Stage 4: Fetch account history and power meter data (90%)
-        // Try to fetch power meter data via WebSocket for faster initial load
-        // Skip heavy market history data - it will be fetched on-demand when user visits market tab
-        const [accountHistory, wsPowerMeterData] = await Promise.all([
-          steemApi.getAccountHistory(username, -1, 100).catch(() => []),
-          steemWebSocket.isConnected() 
-            ? steemWebSocket.fetchPowerMeterData(username).catch(() => null)
-            : Promise.resolve(null)
-        ]);
-        
         // Process power meter data if received
         const powerMeterData = wsPowerMeterData ? processPowerMeterData(wsPowerMeterData) : null;
 
-        setLoadingProgress(90);
+        setLoadingProgress(95);
         setLoadingStage("Finalizing...");
 
-        // Format account history
-        const recentTransactions = (accountHistory || [])
-          .map((tx: any) => steemApi.formatTransaction(tx))
-          .filter((tx: any) => !EXCLUDED_OPERATIONS.includes(tx.type))
-          .reverse();
-        
-        // Cache account history
-        dataCache.cacheAccountHistory(username, recentTransactions).catch(console.warn);
+        // Initialize empty data for lazy-loaded sections
+        // Witnesses will be loaded by useWitnesses hook when user visits Witness tab
+        // Account history will be loaded by useAccountHistory hook when user visits History tab
+        // Market data will be loaded by useMarketData hook when user visits Market tab
+        const witnesses: FormattedWitness[] = [];
+        const userWitnessVotes = account.witness_votes || [];
+        const recentTransactions: any[] = [];
 
         // Compile market data (empty until user visits market tab)
         const marketData: MarketDataState = {

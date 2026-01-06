@@ -30,15 +30,29 @@ const hasInvalidVersion = (witness: any): boolean => {
   return witness.running_version !== '0.23.1';
 };
 
-export const useWitnessData = (loggedInUser: string | null) => {
+interface UseWitnessDataOptions {
+  // If provided, these witness votes will be used instead of fetching from API
+  // This allows the caller to pass in votes from WalletDataContext to avoid duplicate API calls
+  preloadedWitnessVotes?: string[];
+}
+
+export const useWitnessData = (loggedInUser: string | null, options?: UseWitnessDataOptions) => {
   const { data: witnesses, isLoading: witnessesLoading, error: witnessesError } = useWitnesses();
+  
+  // Only fetch user account if we don't have preloaded witness votes
+  const shouldFetchAccount = !!loggedInUser && !options?.preloadedWitnessVotes;
+  
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ['userWitnessVotes', loggedInUser],
     queryFn: () => loggedInUser ? steemApi.getAccount(loggedInUser) : null,
-    enabled: !!loggedInUser,
+    enabled: shouldFetchAccount,
+    staleTime: 30000, // Cache for 30 seconds
+    gcTime: 120000, // Keep in cache for 2 minutes
+    refetchOnWindowFocus: false,
   });
 
-  const userWitnessVotes = userData?.witness_votes || [];
+  // Use preloaded votes if available, otherwise fall back to fetched data
+  const userWitnessVotes = options?.preloadedWitnessVotes || userData?.witness_votes || [];
 
   const formattedWitnesses = witnesses?.map((witness, index) => {
     const isDisabledByKey = isWitnessDisabledByKey(witness);
@@ -62,7 +76,8 @@ export const useWitnessData = (loggedInUser: string | null) => {
 
   return {
     witnesses: formattedWitnesses,
-    isLoading: witnessesLoading || userLoading,
+    // If using preloaded votes, don't show user loading state
+    isLoading: witnessesLoading || (shouldFetchAccount && userLoading),
     error: witnessesError,
     userVoteCount: userWitnessVotes.length,
   };

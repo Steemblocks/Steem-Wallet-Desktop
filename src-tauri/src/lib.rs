@@ -37,6 +37,7 @@ pub fn run() {
             generate_keys_from_password,
             verify_private_key_format,
             clear_sensitive_data,
+            http_post,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

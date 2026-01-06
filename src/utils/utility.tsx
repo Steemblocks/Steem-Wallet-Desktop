@@ -8,12 +8,32 @@ interface DynamicGlobalProperties {
   total_vesting_shares: string;
 }
 
+// ===== Caching for getSteemPerMvests to reduce redundant API calls =====
+// This value changes very slowly (once per 3 seconds at block level), 
+// so caching for 60 seconds is safe and reduces API calls significantly
+interface SteemPerMvestsCache {
+  value: number;
+  timestamp: number;
+}
+
+let steemPerMvestsCache: SteemPerMvestsCache | null = null;
+const STEEM_PER_MVESTS_CACHE_TTL = 60000; // 60 seconds cache
+
 /**
  * Fetches the current Steem per MegaVests (1,000,000 Vests) value.
+ * Results are cached for 60 seconds to reduce API calls.
  *
+ * @param forceRefresh If true, bypasses the cache and fetches fresh data
  * @returns {Promise<number>} A promise that resolves to the current Steem per Mvests value.
  */
-export const getSteemPerMvests = async (): Promise<number> => {
+export const getSteemPerMvests = async (forceRefresh = false): Promise<number> => {
+  const now = Date.now();
+  
+  // Return cached value if still valid and not forcing refresh
+  if (!forceRefresh && steemPerMvestsCache && (now - steemPerMvestsCache.timestamp) < STEEM_PER_MVESTS_CACHE_TTL) {
+    return steemPerMvestsCache.value;
+  }
+  
   try {
     const properties = await steemApi.getDynamicGlobalProperties();
     const totalVestingFundSteem = parseFloat(properties.total_vesting_fund_steem.split(' ')[0]);
@@ -24,11 +44,31 @@ export const getSteemPerMvests = async (): Promise<number> => {
     }
 
     const steemPerVest = totalVestingFundSteem / totalVestingShares;
-    return steemPerVest * 1_000_000; // Steem per MegaVests
+    const result = steemPerVest * 1_000_000; // Steem per MegaVests
+    
+    // Cache the result
+    steemPerMvestsCache = { value: result, timestamp: now };
+    
+    return result;
   } catch (error) {
     console.error('Error fetching Steem per Mvests:', error);
+    
+    // If we have a cached value (even if stale), return it as fallback
+    if (steemPerMvestsCache) {
+      console.log('Using stale cached Steem per Mvests value as fallback');
+      return steemPerMvestsCache.value;
+    }
+    
     throw new Error('Could not fetch Steem per Mvests. Please check the API endpoint and your network connection.');
   }
+};
+
+/**
+ * Update the cached Steem per Mvests value from external source (e.g., WebSocket)
+ * This allows other parts of the app to update the cache without making API calls
+ */
+export const updateSteemPerMvestsCache = (value: number): void => {
+  steemPerMvestsCache = { value, timestamp: Date.now() };
 };
 
 /**

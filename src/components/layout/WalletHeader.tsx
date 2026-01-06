@@ -438,7 +438,7 @@ const WalletHeader = ({
                         onClick={() => handleTabChange(item.id)}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                           activeTab === item.id
-                            ? "bg-steemit-500 text-white"
+                            ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20"
                             : "hover:bg-slate-800 text-slate-300 hover:text-white"
                         }`}
                       >
