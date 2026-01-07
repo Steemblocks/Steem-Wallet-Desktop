@@ -52,8 +52,8 @@ const PowerOperations = () => {
   const handlePowerUp = async () => {
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to perform this operation",
+        title: "Authentication Required",
+        description: "Please log in to perform this operation.",
         variant: "destructive",
       });
       return;
@@ -102,8 +102,8 @@ const PowerOperations = () => {
         refetch();
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to power up. Please try again.",
+          title: "Power Up Failed",
+          description: "Unable to complete power up. Please try again.",
           variant: "destructive",
         });
       }
@@ -115,8 +115,8 @@ const PowerOperations = () => {
   const handlePowerDown = async () => {
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to perform this operation",
+        title: "Authentication Required",
+        description: "Please log in to perform this operation.",
         variant: "destructive",
       });
       return;
@@ -169,8 +169,8 @@ const PowerOperations = () => {
         refetch();
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to power down. Please try again.",
+          title: "Power Down Failed",
+          description: "Unable to initiate power down. Please try again.",
           variant: "destructive",
         });
       }
@@ -184,8 +184,8 @@ const PowerOperations = () => {
     const privateKeyString = await getDecryptedKey(username!, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for this operation",
+        title: "Active Key Required",
+        description: "An active key is required for power up. Please import your key in Account settings.",
         variant: "destructive",
       });
       setIsProcessingPowerUp(false);
@@ -199,7 +199,7 @@ const PowerOperations = () => {
       
       toast({
         title: "Power Up Successful",
-        description: `${powerUpAmount} STEEM has been powered up`,
+        description: `${powerUpAmount} STEEM has been powered up successfully.`,
         variant: "success",
       });
       setPowerUpAmount("");
@@ -233,7 +233,7 @@ const PowerOperations = () => {
       }
       
       toast({
-        title: "Operation Failed",
+        title: "Power Up Failed",
         description: errorMessage,
         variant: "destructive",
       });
@@ -248,8 +248,8 @@ const PowerOperations = () => {
     const privateKeyString = await getDecryptedKey(username, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for this operation",
+        title: "Active Key Required",
+        description: "An active key is required for power down. Please import your key in Account settings.",
         variant: "destructive",
       });
       setIsProcessingPowerDown(false);
@@ -263,7 +263,7 @@ const PowerOperations = () => {
       
       toast({
         title: "Power Down Initiated",
-        description: `${powerDownAmount} STEEM power down started`,
+        description: `${powerDownAmount} STEEM power down has been started successfully.`,
         variant: "success",
       });
       setPowerDownAmount("");
@@ -295,7 +295,7 @@ const PowerOperations = () => {
       }
       
       toast({
-        title: "Operation Failed",
+        title: "Power Down Failed",
         description: errorMessage,
         variant: "destructive",
       });

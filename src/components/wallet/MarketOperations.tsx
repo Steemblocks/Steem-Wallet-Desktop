@@ -67,8 +67,8 @@ const MarketOperations = () => {
       
       if (!username) {
         toast({
-          title: "Login Required",
-          description: "Please log in to place trade orders",
+          title: "Authentication Required",
+          description: "Please log in to place trade orders.",
           variant: "destructive",
         });
         return;
@@ -78,8 +78,8 @@ const MarketOperations = () => {
       const activeKeyString = await getDecryptedKey(username, 'active');
       if (!activeKeyString) {
         toast({
-          title: "Key Required",
-          description: "Active key is required to place trade orders",
+          title: "Active Key Required",
+          description: "An active key is required to place trade orders. Please import your key in Account settings.",
           variant: "destructive",
         });
         return;
@@ -175,8 +175,8 @@ const MarketOperations = () => {
       const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
       if (isDuplicate) {
         toast({
-          title: "Order Already Placed",
-          description: "This order was already submitted",
+          title: "Order Already Submitted",
+          description: "This order has already been placed successfully.",
           variant: "success",
         });
         setAmount("");

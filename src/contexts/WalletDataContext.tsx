@@ -121,6 +121,7 @@ interface WalletDataContextType {
   // Loading states
   isInitialLoading: boolean;
   isRefreshing: boolean;
+  isSwitchingAccount: boolean;
   loadingProgress: number;
   loadingStage: string;
 
@@ -131,6 +132,7 @@ interface WalletDataContextType {
   refreshAll: () => Promise<void>;
   refreshAccount: () => Promise<void>;
   refreshMarket: () => Promise<void>;
+  switchAccount: (username: string) => Promise<void>;
   setSelectedAccount: (username: string) => void;
 
   // Current account
@@ -510,6 +512,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingStage, setLoadingStage] = useState("Initializing...");
   const [error, setError] = useState<Error | null>(null);
@@ -521,6 +524,19 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
   // WebSocket connection state
   const [wsConnected, setWsConnected] = useState(false);
   const wsUnsubscribeRef = useRef<(() => void)[]>([]);
+  
+  // Ref to store current data for WebSocket callbacks (avoids stale closures)
+  const dataRef = useRef<PreloadedData>(data);
+  
+  // Ref to track when switchAccount is handling the account change (prevents duplicate loading)
+  const isSwitchingRef = useRef(false);
+  
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+  
+  // Track previous account to detect changes and reset state
+  const prevAccountRef = useRef<string>("");
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -582,24 +598,27 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
     if (!wsConnected || !selectedAccount) return;
 
     const unsubscribe = steemWebSocket.subscribeToAccount(selectedAccount, async (accountUpdate) => {
+      // Use ref to get current data values (avoids stale closures)
+      const currentData = dataRef.current;
+      
       // Update account data with real-time changes
-      if (data.account && data.priceData) {
+      if (currentData.account && currentData.priceData) {
         // Merge the update with existing account data
         const updatedAccount = {
-          ...data.account,
-          balance: accountUpdate.balance || data.account.balance,
-          sbd_balance: accountUpdate.sbd_balance || data.account.sbd_balance,
-          vesting_shares: accountUpdate.vesting_shares || data.account.vesting_shares,
-          reward_steem_balance: accountUpdate.reward_steem_balance || data.account.reward_steem_balance,
-          reward_sbd_balance: accountUpdate.reward_sbd_balance || data.account.reward_sbd_balance,
-          reward_vesting_balance: accountUpdate.reward_vesting_balance || data.account.reward_vesting_balance,
+          ...currentData.account,
+          balance: accountUpdate.balance || currentData.account.balance,
+          sbd_balance: accountUpdate.sbd_balance || currentData.account.sbd_balance,
+          vesting_shares: accountUpdate.vesting_shares || currentData.account.vesting_shares,
+          reward_steem_balance: accountUpdate.reward_steem_balance || currentData.account.reward_steem_balance,
+          reward_sbd_balance: accountUpdate.reward_sbd_balance || currentData.account.reward_sbd_balance,
+          reward_vesting_balance: accountUpdate.reward_vesting_balance || currentData.account.reward_vesting_balance,
         };
 
         // Recalculate wallet data
         const walletData = await formatWalletDataFromAccount(
           updatedAccount,
-          data.priceData,
-          data.steemPerMvests
+          currentData.priceData,
+          currentData.steemPerMvests
         );
 
         setData(prev => ({
@@ -616,7 +635,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
       unsubscribe();
       wsUnsubscribeRef.current = wsUnsubscribeRef.current.filter(u => u !== unsubscribe);
     };
-  }, [wsConnected, selectedAccount, data.account, data.priceData, data.steemPerMvests]);
+  }, [wsConnected, selectedAccount]);
 
   // Subscribe to power meter updates via WebSocket when logged in
   useEffect(() => {
@@ -807,15 +826,55 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
     []
   );
 
-  // Fetch data when selected account changes
+  // Fetch data when selected account changes (only for initial load or URL navigation)
   useEffect(() => {
+    // Skip if switchAccount is handling this (it does its own data fetching)
+    // Check both the ref AND the state to cover all timing scenarios
+    if (isSwitchingRef.current || isSwitchingAccount) {
+      prevAccountRef.current = selectedAccount;
+      return;
+    }
+    
+    // Detect account change and reset data immediately
+    if (selectedAccount !== prevAccountRef.current) {
+      const previousAccount = prevAccountRef.current;
+      prevAccountRef.current = selectedAccount;
+      
+      // If there was a previous account, do cleanup (handles Add Account case)
+      if (previousAccount && selectedAccount) {
+        // Clean up WebSocket subscriptions for old account
+        wsUnsubscribeRef.current.forEach(unsub => {
+          try { unsub(); } catch (e) { console.warn('Error unsubscribing:', e); }
+        });
+        wsUnsubscribeRef.current = [];
+        
+        // Clear React Query cache for account-specific queries
+        queryClient.cancelQueries();
+        queryClient.removeQueries({ queryKey: ['steemAccount'] });
+        queryClient.removeQueries({ queryKey: ['accountHistory'] });
+        queryClient.removeQueries({ queryKey: ['outgoing-delegations'] });
+        queryClient.removeQueries({ queryKey: ['delegations'] });
+        queryClient.removeQueries({ queryKey: ['userWitnessVotes'] });
+        queryClient.removeQueries({ queryKey: ['proposals'] });
+      }
+      
+      // Reset to default data immediately when switching accounts
+      // This ensures UI doesn't show stale data from previous account
+      if (selectedAccount) {
+        setData(defaultPreloadedData);
+        setIsInitialLoading(true);
+        setLoadingProgress(0);
+        setLoadingStage("Loading account...");
+      }
+    }
+    
     if (selectedAccount) {
       fetchAllData(selectedAccount, false);
     } else {
       setData(defaultPreloadedData);
       setIsInitialLoading(false);
     }
-  }, [selectedAccount, fetchAllData]);
+  }, [selectedAccount, fetchAllData, isSwitchingAccount, queryClient]);
 
   // Auto-refresh with adaptive interval based on WebSocket connection
   // When WebSocket is connected: 60 seconds (just for price/power data that WS doesn't provide)
@@ -950,18 +1009,178 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
     }
   }, [data.account, data.steemPerMvests, data.marketData]);
 
+  // Comprehensive account switch function that handles all sync operations
+  const switchAccount = useCallback(async (newUsername: string) => {
+    if (!newUsername || newUsername === selectedAccount) return;
+
+    // Mark that we're handling the switch (prevents duplicate loading from useEffect)
+    isSwitchingRef.current = true;
+    setIsSwitchingAccount(true);
+    setLoadingStage("Switching account...");
+    setLoadingProgress(0);
+    
+    try {
+      // Step 1: Clean up existing WebSocket subscriptions (10%)
+      setLoadingStage("Cleaning up connections...");
+      setLoadingProgress(10);
+      
+      // Unsubscribe from current account's WebSocket subscriptions
+      wsUnsubscribeRef.current.forEach(unsub => {
+        try { unsub(); } catch (e) { console.warn('Error unsubscribing:', e); }
+      });
+      wsUnsubscribeRef.current = [];
+
+      // Step 2: Clear React Query cache for account-specific queries (20%)
+      setLoadingStage("Clearing cache...");
+      setLoadingProgress(20);
+      
+      // Remove stale data for the old account from cache (non-blocking)
+      queryClient.cancelQueries();
+      queryClient.removeQueries({ queryKey: ['steemAccount'] });
+      queryClient.removeQueries({ queryKey: ['accountHistory'] });
+      queryClient.removeQueries({ queryKey: ['outgoing-delegations'] });
+      queryClient.removeQueries({ queryKey: ['delegations'] });
+      queryClient.removeQueries({ queryKey: ['userWitnessVotes'] });
+      queryClient.removeQueries({ queryKey: ['proposals'] });
+
+      // Step 3: Reset local state to defaults (30%)
+      setLoadingStage("Resetting state...");
+      setLoadingProgress(30);
+      
+      // Reset data to defaults immediately to prevent showing stale data
+      setData(defaultPreloadedData);
+      setError(null);
+      
+      // Update refs to track new account
+      prevAccountRef.current = newUsername;
+      dataRef.current = defaultPreloadedData;
+
+      // Step 4: Update account identifiers (35%)
+      setLoadingProgress(35);
+      setSelectedAccount(newUsername);
+      setLoggedInUser(newUsername);
+
+      // Step 5: Dispatch account-switch event for components with local state (40%)
+      setLoadingProgress(40);
+      window.dispatchEvent(new CustomEvent('account-switch', { 
+        detail: { username: newUsername, previousUsername: selectedAccount } 
+      }));
+
+      // Step 6: Fetch fresh data for the new account (40-95%)
+      setLoadingStage("Fetching account data...");
+      setLoadingProgress(45);
+
+      const [steemPerMvests, priceData, account] = await Promise.all([
+        getSteemPerMvests(),
+        fetchPriceFromSteemMarket(),
+        steemApi.getAccount(newUsername),
+      ]);
+
+      if (!account) {
+        throw new Error(`Account ${newUsername} not found`);
+      }
+
+      setLoadingProgress(60);
+      setLoadingStage("Processing wallet data...");
+
+      const walletData = await formatWalletDataFromAccount(
+        account,
+        priceData,
+        steemPerMvests
+      );
+      
+      // Cache the new data
+      dataCache.cacheWalletData(newUsername, walletData).catch(console.warn);
+      dataCache.cachePriceData(priceData).catch(console.warn);
+
+      setLoadingProgress(75);
+      setLoadingStage("Loading delegations...");
+
+      const [delegationsResult, wsPowerMeterData] = await Promise.all([
+        steemApi.getVestingDelegations(newUsername).catch(() => []),
+        steemWebSocket.isConnected() 
+          ? steemWebSocket.fetchPowerMeterData(newUsername).catch(() => null)
+          : Promise.resolve(null)
+      ]);
+
+      setLoadingProgress(85);
+
+      const outgoingDelegations = delegationsResult
+        .filter((d: any) => parseFloat(d.vesting_shares.split(" ")[0]) > 0)
+        .map((d: any) => steemApi.formatDelegation(d, steemPerMvests));
+
+      const totalDelegatedOut = outgoingDelegations.reduce(
+        (sum: number, d: any) => sum + parseFloat(d.steemPower),
+        0
+      );
+      
+      dataCache.cacheDelegations(newUsername, outgoingDelegations).catch(console.warn);
+
+      const powerMeterData = wsPowerMeterData ? processPowerMeterData(wsPowerMeterData) : null;
+
+      setLoadingProgress(95);
+      setLoadingStage("Finalizing...");
+
+      // Set all new account data at once
+      const newData: PreloadedData = {
+        account,
+        walletData,
+        outgoingDelegations,
+        totalDelegatedOut,
+        witnesses: [],
+        userWitnessVotes: account.witness_votes || [],
+        marketData: {
+          orderBook: null,
+          ticker: null,
+          volume: null,
+          tradeHistory: [],
+          hourlyHistory: [],
+          dailyHistory: [],
+        },
+        priceData,
+        steemPerMvests,
+        recentTransactions: [],
+        powerMeterData,
+      };
+
+      setData(newData);
+      dataRef.current = newData;
+
+      setLoadingProgress(100);
+      setLoadingStage("Complete!");
+      
+      // Ensure isInitialLoading is false since we've loaded all data
+      setIsInitialLoading(false);
+
+      // WebSocket subscriptions will be automatically set up by the useEffects
+      // that watch for wsConnected and selectedAccount changes
+
+    } catch (err) {
+      console.error("Error switching account:", err);
+      setError(err instanceof Error ? err : new Error("Failed to switch account"));
+      throw err;
+    } finally {
+      setIsSwitchingAccount(false);
+      setIsInitialLoading(false); // Ensure loading is cleared even on error
+      // Clear the flag after a brief delay to ensure useEffect has seen the new selectedAccount
+      setTimeout(() => { isSwitchingRef.current = false; }, 100);
+    }
+  }, [selectedAccount, queryClient, setLoggedInUser]);
+
   // Memoized context value
   const contextValue = useMemo<WalletDataContextType>(
     () => ({
       data,
       isInitialLoading,
       isRefreshing,
+      isSwitchingAccount,
       loadingProgress,
       loadingStage,
       error,
       refreshAll,
       refreshAccount,
       refreshMarket,
+      switchAccount,
       setSelectedAccount,
       selectedAccount,
       loggedInUser,
@@ -973,12 +1192,14 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({
       data,
       isInitialLoading,
       isRefreshing,
+      isSwitchingAccount,
       loadingProgress,
       loadingStage,
       error,
       refreshAll,
       refreshAccount,
       refreshMarket,
+      switchAccount,
       selectedAccount,
       loggedInUser,
       activeTab,
@@ -1010,12 +1231,14 @@ export const useWalletData = (): WalletDataContextType => {
       data: defaultPreloadedData,
       isInitialLoading: true,
       isRefreshing: false,
+      isSwitchingAccount: false,
       loadingProgress: 0,
       loadingStage: "Initializing...",
       error: null,
       refreshAll: async () => {},
       refreshAccount: async () => {},
       refreshMarket: async () => {},
+      switchAccount: async () => {},
       setSelectedAccount: () => {},
       selectedAccount: "",
       loggedInUser: null,

@@ -42,8 +42,8 @@ const TransferOperations = () => {
     // Check if user is logged in first
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to perform blockchain operations. You can view wallet information without logging in.",
+        title: "Authentication Required",
+        description: "Please log in to perform blockchain operations. You can view wallet information without logging in.",
         variant: "destructive",
       });
       return;

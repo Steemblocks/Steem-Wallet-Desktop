@@ -212,7 +212,10 @@ class SteemWebSocketService {
    * Handle WebSocket error
    */
   private handleError(event: Event): void {
-    console.error('[WebSocket] Error:', event);
+    // Only log detailed errors in development to reduce console noise
+    if (import.meta.env.DEV) {
+      console.warn('[WebSocket] Error:', event);
+    }
     this.onErrorCallbacks.forEach(cb => cb(event));
   }
 
@@ -311,12 +314,15 @@ class SteemWebSocketService {
       this.maxReconnectDelay
     );
 
-    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    // Only log reconnection attempts in development
+    if (import.meta.env.DEV) {
+      console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    }
 
     setTimeout(() => {
       if (this.shouldReconnect) {
-        this.connect().catch(err => {
-          console.error('[WebSocket] Reconnection failed:', err);
+        this.connect().catch(() => {
+          // Silently handle reconnection failures - they'll be retried
         });
       }
     }, delay);

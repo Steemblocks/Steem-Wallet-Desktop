@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { ThumbsUp, ThumbsDown, Battery, RefreshCw, Clock } from "lucide-react";
 import { useWalletData } from "@/contexts/WalletDataContext";
+import { getAvatarUrl, handleAvatarError } from "@/utils/utility";
 
 // Horizontal bar meter with gradient and glow effect
 const PowerBar = memo(({ 
@@ -173,12 +174,11 @@ const AccountPowerMeters = memo(({ username }: AccountPowerMetersProps) => {
       <div className="rounded-xl border border-slate-700/50 bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm p-5">
         <div className="flex items-center gap-3">
           <img 
-            src={`https://steemitimages.com/u/${username}/avatar`}
+            src={getAvatarUrl(username)}
             alt={username}
             className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2 border-slate-600"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${username}`;
-            }}
+            loading="lazy"
+            onError={handleAvatarError}
           />
           <span className="text-sm text-slate-400">Unable to load account status</span>
         </div>
@@ -209,12 +209,11 @@ const AccountPowerMeters = memo(({ username }: AccountPowerMetersProps) => {
         <div className="flex items-center gap-3">
           <div className="relative">
             <img 
-              src={`https://steemitimages.com/u/${username}/avatar`}
+              src={getAvatarUrl(username)}
               alt={username}
               className="w-11 h-11 rounded-full object-cover flex-shrink-0 border-2 border-emerald-500/30"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${username}`;
-              }}
+              loading="lazy"
+              onError={handleAvatarError}
             />
             {/* Online indicator */}
             <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900" />

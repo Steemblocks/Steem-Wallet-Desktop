@@ -23,6 +23,8 @@ import {
 import LoginDialog from "@/components/wallet/LoginDialog";
 import { useToast } from "@/hooks/use-toast";
 import { accountManager, StoredAccount } from "@/services/accountManager";
+import { getAvatarUrl, handleAvatarError } from "@/utils/utility";
+import { useWalletData } from "@/contexts/WalletDataContext";
 import {
   Sheet,
   SheetContent,
@@ -63,6 +65,52 @@ interface WalletHeaderProps {
   onRefresh?: () => void;
 }
 
+// Account list item component with avatar caching
+interface AccountListItemProps {
+  username: string;
+  isSwitching: boolean;
+  onSwitch: (username: string) => void;
+  onRemove: (username: string) => void;
+}
+
+const AccountListItem = ({ username, isSwitching, onSwitch, onRemove }: AccountListItemProps) => {
+  return (
+    <div
+      className={`flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 cursor-pointer group ${
+        isSwitching ? "opacity-50 pointer-events-none" : ""
+      }`}
+      onClick={() => !isSwitching && onSwitch(username)}
+    >
+      <img
+        src={getAvatarUrl(username)}
+        alt={`@${username}`}
+        className="w-8 h-8 rounded-full object-cover"
+        loading="lazy"
+        onError={handleAvatarError}
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-300 truncate">
+          @{username}
+        </p>
+      </div>
+      {isSwitching ? (
+        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+      ) : (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(username);
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
+          title="Remove account"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+        </button>
+      )}
+    </div>
+  );
+};
+
 const WalletHeader = ({
   selectedAccount,
   loggedInUser,
@@ -81,9 +129,11 @@ const WalletHeader = ({
   const [accountToRemove, setAccountToRemove] = useState<string | null>(null);
   const [storedAccounts, setStoredAccounts] = useState<StoredAccount[]>([]);
   const [showAddAccountDialog, setShowAddAccountDialog] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Get switchAccount from context for comprehensive account switching
+  const { switchAccount, isSwitchingAccount } = useWalletData();
 
   // Load stored accounts
   useEffect(() => {
@@ -95,27 +145,37 @@ const WalletHeader = ({
   }, [loggedInUser]);
 
   const handleAccountSwitch = async (username: string) => {
-    if (username === loggedInUser || isSwitching) return;
+    if (username === loggedInUser || isSwitchingAccount) return;
 
-    setIsSwitching(true);
     try {
-      await accountManager.switchAccount(username);
-      onAccountSwitch?.(username);
+      // Navigate first to update URL
       navigate(`/@${username}`);
+      
+      // Start the context switch immediately (shows loading screen right away)
+      // This handles: WebSocket cleanup, cache clearing, state reset, and fresh data fetch
+      const switchPromise = switchAccount(username);
+      
+      // Update accountManager in parallel (persists the switch) - non-blocking
+      accountManager.switchAccount(username).catch(console.warn);
+      
+      // Wait for the context switch to complete
+      await switchPromise;
+      
+      // Notify parent component
+      onAccountSwitch?.(username);
+      
       toast({
         title: "Account Switched",
-        description: `Switched to @${username}`,
+        description: `Successfully switched to @${username}.`,
         variant: "success",
       });
     } catch (error) {
       console.error("Error switching account:", error);
       toast({
-        title: "Switch Failed",
-        description: "Could not switch account. Please try again.",
+        title: "Account Switch Failed",
+        description: "Unable to switch accounts. Please check your connection and try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsSwitching(false);
     }
   };
 
@@ -136,14 +196,14 @@ const WalletHeader = ({
 
       toast({
         title: "Account Removed",
-        description: `@${username} has been removed from the app.`,
+        description: `@${username} has been successfully removed from your wallet.`,
         variant: "success",
       });
     } catch (error) {
       console.error("Error removing account:", error);
       toast({
-        title: "Remove Failed",
-        description: "Could not remove account. Please try again.",
+        title: "Account Removal Failed",
+        description: "Unable to remove the account. Please try again.",
         variant: "destructive",
       });
     }
@@ -281,14 +341,11 @@ const WalletHeader = ({
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-1 hover:opacity-80 transition-opacity">
                     <img
-                      src={`https://steemitimages.com/u/${loggedInUser}/avatar`}
+                      src={getAvatarUrl(loggedInUser)}
                       alt={`@${loggedInUser}`}
                       className="w-9 h-9 rounded-full border-2 border-steemit-500 object-cover"
-                      onError={(e) => {
-                        (
-                          e.target as HTMLImageElement
-                        ).src = `https://steemitimages.com/u/${loggedInUser}/avatar/small`;
-                      }}
+                      loading="lazy"
+                      onError={handleAvatarError}
                     />
                     <ChevronDown className="w-4 h-4 text-slate-400" />
                   </button>
@@ -307,9 +364,11 @@ const WalletHeader = ({
                       onClick={() => navigate(`/@${loggedInUser}`)}
                     >
                       <img
-                        src={`https://steemitimages.com/u/${loggedInUser}/avatar`}
+                        src={getAvatarUrl(loggedInUser)}
                         alt={`@${loggedInUser}`}
                         className="w-8 h-8 rounded-full object-cover"
+                        loading="lazy"
+                        onError={handleAvatarError}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">
@@ -332,47 +391,16 @@ const WalletHeader = ({
                         {storedAccounts
                           .filter((a) => a.username !== loggedInUser)
                           .map((account) => (
-                            <div
+                            <AccountListItem
                               key={account.username}
-                              className={`flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 cursor-pointer group ${
-                                isSwitching
-                                  ? "opacity-50 pointer-events-none"
-                                  : ""
-                              }`}
-                            >
-                              <img
-                                src={`https://steemitimages.com/u/${account.username}/avatar`}
-                                alt={`@${account.username}`}
-                                className="w-8 h-8 rounded-full object-cover"
-                                onClick={() =>
-                                  handleAccountSwitch(account.username)
-                                }
-                              />
-                              <div
-                                className="flex-1 min-w-0"
-                                onClick={() =>
-                                  handleAccountSwitch(account.username)
-                                }
-                              >
-                                <p className="text-sm font-medium text-slate-300 truncate">
-                                  @{account.username}
-                                </p>
-                              </div>
-                              {isSwitching ? (
-                                <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAccountToRemove(account.username);
-                                    setShowRemoveAccountDialog(true);
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-400" />
-                                </button>
-                              )}
-                            </div>
+                              username={account.username}
+                              isSwitching={isSwitchingAccount}
+                              onSwitch={handleAccountSwitch}
+                              onRemove={(username) => {
+                                setAccountToRemove(username);
+                                setShowRemoveAccountDialog(true);
+                              }}
+                            />
                           ))}
                       </div>
                     </>

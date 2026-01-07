@@ -113,8 +113,8 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
         onUpdate?.();
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to cancel savings withdrawal. Please try again.",
+          title: "Cancellation Failed",
+          description: "Unable to cancel savings withdrawal. Please try again.",
           variant: "destructive",
         });
         // Only reset ref on genuine errors to allow retry
@@ -129,8 +129,8 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
     const privateKeyString = await getDecryptedKey(username!, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for this operation",
+        title: "Active Key Required",
+        description: "An active key is required to cancel withdrawals. Please import your key in Account settings.",
         variant: "destructive",
       });
       cancelSubmittedRef.current.delete(requestId);
@@ -144,7 +144,7 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
       
       toast({
         title: "Withdrawal Cancelled",
-        description: "Your savings withdrawal has been cancelled",
+        description: "Your savings withdrawal has been successfully cancelled.",
         variant: "success",
       });
       // Remove from local state
@@ -175,7 +175,7 @@ const SavingsWithdrawStatus = ({ account, onUpdate }: SavingsWithdrawStatusProps
       }
       
       toast({
-        title: "Operation Failed",
+        title: "Cancellation Failed",
         description: errorMessage,
         variant: "destructive",
       });

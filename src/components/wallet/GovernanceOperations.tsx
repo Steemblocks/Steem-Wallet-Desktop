@@ -107,6 +107,14 @@ const GovernanceOperations = () => {
   const { invalidateUserVotes } = useInvalidateProposals();
   const [localVoteChanges, setLocalVoteChanges] = useState<{added: number[], removed: number[]}>({added: [], removed: []});
   
+  // Clear local changes when server data updates (after invalidation refreshes)
+  useEffect(() => {
+    // When server data changes, clear local optimistic changes that are now reflected in server
+    if (serverUserVotes.length > 0 || localVoteChanges.added.length > 0 || localVoteChanges.removed.length > 0) {
+      setLocalVoteChanges({ added: [], removed: [] });
+    }
+  }, [serverUserVotes]);
+  
   // Combine server data with local optimistic changes
   const userVotedProposals = [
     ...serverUserVotes.filter(id => !localVoteChanges.removed.includes(id)),
@@ -185,8 +193,8 @@ const GovernanceOperations = () => {
   const handleVoteProposal = async (proposalId: number, approve: boolean) => {
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to vote on proposals",
+        title: "Authentication Required",
+        description: "Please log in to vote on proposals.",
         variant: "destructive",
       });
       return;
@@ -245,8 +253,8 @@ const GovernanceOperations = () => {
     const privateKeyString = await getDecryptedKey(username, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for proposal voting",
+        title: "Active Key Required",
+        description: "Your active key is required to vote on proposals. Please ensure your keys are properly imported.",
         variant: "destructive",
       });
       setProcessingProposalId(null);
@@ -259,17 +267,22 @@ const GovernanceOperations = () => {
       const result = await steemOperations.updateProposalVotes(operation, privateKey);
       
       toast({
-        title: `Proposal ${action} Successful`,
-        description: `Successfully ${action}d on proposal(s) ${operation.proposal_ids.join(', ')}`,
+        title: `Proposal ${action === 'vote' ? 'Vote' : 'Unvote'} Successful`,
+        description: `You have successfully ${action === 'vote' ? 'voted for' : 'removed your vote from'} proposal #${operation.proposal_ids.join(', ')}.`,
         variant: "success",
       });
       
-      // Update local vote state
+      // Update local vote state for immediate UI feedback
       if (operation.approve) {
         setUserVotedProposals(prev => [...prev, ...operation.proposal_ids]);
       } else {
         setUserVotedProposals(prev => prev.filter(id => !operation.proposal_ids.includes(id)));
       }
+      
+      // Also invalidate server data to sync after blockchain processes
+      setTimeout(() => {
+        invalidateUserVotes();
+      }, 2000);
       
       setProcessingProposalId(null);
       // Allow voting on the opposite action after success
@@ -304,7 +317,7 @@ const GovernanceOperations = () => {
         }
         
         toast({
-          title: "Operation Failed",
+          title: "Proposal Vote Failed",
           description: errorMessage,
           variant: "destructive",
         });

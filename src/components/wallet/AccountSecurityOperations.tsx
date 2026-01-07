@@ -161,8 +161,8 @@ const AccountSecurityOperations = ({
   const handleImportKeys = async () => {
     if (!loggedInUser || !importPassword) {
       toast({
-        title: "Missing Information",
-        description: "Please enter your master password",
+        title: "Master Password Required",
+        description: "Please enter your master password to import keys.",
         variant: "destructive",
       });
       return;
@@ -225,8 +225,7 @@ const AccountSecurityOperations = ({
 
       toast({
         title: "Keys Imported Successfully",
-        description:
-          "All 4 keys (owner, active, posting, memo) have been imported and are now revealed.",
+        description: "All 4 keys (Owner, Active, Posting, Memo) have been securely imported and are now available.",
         variant: "success",
       });
 
@@ -235,9 +234,8 @@ const AccountSecurityOperations = ({
       setImportPassword("");
     } catch (error: any) {
       toast({
-        title: "Import Failed",
-        description:
-          error.message || "Failed to import keys from master password",
+        title: "Key Import Failed",
+        description: error.message || "Unable to import keys from master password. Please verify your password.",
         variant: "destructive",
       });
     } finally {
@@ -257,8 +255,7 @@ const AccountSecurityOperations = ({
     if (!loggedInUser || !canRevealPrivateKeys()) {
       toast({
         title: "Access Denied",
-        description:
-          "Private key revelation requires master password or private key login",
+        description: "Private key access requires proper authentication. Please log in with your master password or private keys.",
         variant: "destructive",
       });
       return;
@@ -301,13 +298,13 @@ const AccountSecurityOperations = ({
 
       toast({
         title: "Private Keys Revealed",
-        description: "Handle with extreme care! Never share your private keys.",
+        description: "⚠️ Keep your private keys safe! Never share them with anyone.",
         variant: "success",
       });
     } catch (error: any) {
       toast({
         title: "Failed to Reveal Keys",
-        description: error.message || "Could not retrieve private keys",
+        description: error.message || "Unable to retrieve private keys. Please try again.",
         variant: "destructive",
       });
     }
@@ -335,8 +332,8 @@ const AccountSecurityOperations = ({
   const handleGenerateNewPassword = async () => {
     if (!loggedInUser || !passwordData.oldPassword) {
       toast({
-        title: "Missing Information",
-        description: "Please enter your current password",
+        title: "Current Password Required",
+        description: "Please enter your current password to generate a new one.",
         variant: "destructive",
       });
       return;
@@ -347,8 +344,8 @@ const AccountSecurityOperations = ({
 
     if (!ownerKey && !activeKey) {
       toast({
-        title: "Key Required",
-        description: "Owner or Active key is required for password change",
+        title: "Owner or Active Key Required",
+        description: "You need your Owner or Active key to change your password. Please import your keys first.",
         variant: "destructive",
       });
       return;
@@ -373,14 +370,13 @@ const AccountSecurityOperations = ({
 
       toast({
         title: "New Password Generated",
-        description:
-          "Please copy your new password and keys before confirming the change",
+        description: "⚠️ Important: Copy and securely save your new password and keys before confirming!",
         variant: "success",
       });
     } catch (error: any) {
       toast({
         title: "Password Generation Failed",
-        description: error.message || "Failed to generate new password",
+        description: error.message || "Unable to generate new password. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -413,8 +409,8 @@ const AccountSecurityOperations = ({
         privateKey = dsteem.PrivateKey.fromString(activeKeyString);
       } else {
         toast({
-          title: "Key Required",
-          description: "Owner or Active key is required for password change",
+          title: "Owner or Active Key Required",
+          description: "You need your Owner or Active key to change your password.",
           variant: "destructive",
         });
         passwordChangeSubmittedRef.current = false;
@@ -458,8 +454,7 @@ const AccountSecurityOperations = ({
 
       toast({
         title: "Password Changed Successfully",
-        description:
-          "Your account password has been updated. Please save your new keys!",
+        description: "✅ Your account password has been updated. Make sure you have saved your new keys!",
         variant: "success",
       });
 
@@ -480,8 +475,7 @@ const AccountSecurityOperations = ({
       if (isDuplicate) {
         toast({
           title: "Password Already Changed",
-          description:
-            "Your password change was already submitted. Please save your new keys!",
+          description: "Your password change was already processed. Please save your new keys!",
           variant: "success",
         });
         setPasswordData({
@@ -496,7 +490,7 @@ const AccountSecurityOperations = ({
 
       toast({
         title: "Password Change Failed",
-        description: error.message || "Failed to change password",
+        description: error.message || "Unable to change password. Please try again.",
         variant: "destructive",
       });
       // CRITICAL: Reset ref so user can retry on genuine errors
@@ -508,8 +502,8 @@ const AccountSecurityOperations = ({
   const handleSetResetAccount = async () => {
     if (!loggedInUser || !resetAccountData.newResetAccount) {
       toast({
-        title: "Missing Information",
-        description: "Please enter the reset account username",
+        title: "Reset Account Required",
+        description: "Please enter the username for your recovery account.",
         variant: "destructive",
       });
       return;
@@ -530,7 +524,7 @@ const AccountSecurityOperations = ({
       if (!ownerKeyString) {
         toast({
           title: "Owner Key Required",
-          description: "Owner key is required for this operation",
+          description: "Your Owner key is required to change the recovery account. Please import your Owner key first.",
           variant: "destructive",
         });
         resetAccountSubmittedRef.current = false;
@@ -550,8 +544,8 @@ const AccountSecurityOperations = ({
       );
 
       toast({
-        title: "Reset Account Updated",
-        description: "Your recovery account has been set successfully",
+        title: "Recovery Account Updated",
+        description: `@${resetAccountData.newResetAccount} is now your recovery account.`,
         variant: "success",
       });
 
@@ -566,8 +560,8 @@ const AccountSecurityOperations = ({
         error?.jse_shortmsg?.includes("duplicate");
       if (isDuplicate) {
         toast({
-          title: "Reset Account Already Updated",
-          description: "Your recovery account change was already submitted.",
+          title: "Recovery Account Already Updated",
+          description: "Your recovery account change was already processed.",
           variant: "success",
         });
         setResetAccountData({ currentResetAccount: "", newResetAccount: "" });
@@ -577,8 +571,8 @@ const AccountSecurityOperations = ({
       }
 
       toast({
-        title: "Operation Failed",
-        description: error.message || "Failed to set reset account",
+        title: "Recovery Account Update Failed",
+        description: error.message || "Unable to update recovery account. Please try again.",
         variant: "destructive",
       });
       // CRITICAL: Reset ref so user can retry on genuine errors
@@ -650,7 +644,7 @@ const AccountSecurityOperations = ({
       await accountManager.addAccount(credentials);
 
       toast({
-        title: "Key Added Successfully",
+        title: "Key Imported Successfully",
         description: `Your ${manualKeyData.keyType} key has been securely stored.`,
         variant: "success",
       });
@@ -663,8 +657,8 @@ const AccountSecurityOperations = ({
     } catch (error: any) {
       console.error("Error importing manual key:", error);
       toast({
-        title: "Import Failed",
-        description: error.message || "Failed to import private key",
+        title: "Key Import Failed",
+        description: error.message || "Unable to import private key. Please verify the key format.",
         variant: "destructive",
       });
     } finally {
@@ -720,15 +714,15 @@ const AccountSecurityOperations = ({
       await steemOperations.updatePostingAuth(updateOp, privKey);
 
       toast({
-        title: "Access Revoked",
-        description: `Successfully revoked access for @${authorizedAccount}`,
+        title: "Access Revoked Successfully",
+        description: `Posting authorization for @${authorizedAccount} has been removed.`,
         variant: "success",
       });
     } catch (error: any) {
       console.error("Error revoking authorized account:", error);
       toast({
         title: "Revocation Failed",
-        description: error.message || "Failed to revoke access",
+        description: error.message || "Unable to revoke access. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -745,13 +739,13 @@ const AccountSecurityOperations = ({
 
       toast({
         title: "Copied to Clipboard",
-        description: `${keyType} copied successfully`,
+        description: `${keyType} has been copied to your clipboard.`,
         variant: "success",
       });
     } catch (error) {
       toast({
         title: "Copy Failed",
-        description: "Failed to copy to clipboard",
+        description: "Unable to copy to clipboard. Please try manually.",
         variant: "destructive",
       });
     }

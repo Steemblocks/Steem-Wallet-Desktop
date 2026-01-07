@@ -143,8 +143,8 @@ const TransferConfirmDialog = ({
     } catch (error) {
       console.error('Operation error:', error);
       toast({
-        title: "Operation Failed",
-        description: "Transaction failed. Please try again.",
+        title: "Transaction Error",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       setIsProcessing(false);
@@ -158,8 +158,8 @@ const TransferConfirmDialog = ({
     const privateKeyString = await getActiveKey();
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for this operation. Please try unlocking the app again.",
+        title: "Active Key Required",
+        description: "Your active key is required for this transaction. Please ensure your keys are properly imported.",
         variant: "destructive",
       });
       setIsProcessing(false);
@@ -236,8 +236,8 @@ const TransferConfirmDialog = ({
       }
       
       toast({
-        title: "Transaction Confirmed",
-        description: `Your ${getOperationTitle(operationType)} transaction was successful!`,
+        title: "Transaction Successful",
+        description: `Your ${getOperationTitle(operationType)} has been completed successfully.`,
         variant: "success",
       });
       
@@ -299,7 +299,7 @@ const TransferConfirmDialog = ({
         onSuccess();
       } else {
         toast({
-          title: "Operation Failed",
+          title: "Transaction Failed",
           description: errorMessage,
           variant: "destructive",
         });

@@ -68,12 +68,12 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
 
   const handleCreateProposal = async () => {
     if (!loggedInUser || !password) {
-      toast.error('Please enter your password');
+      toast.error('Password required. Please enter your password to continue.');
       return;
     }
 
     if (!proposalForm.receiver || !proposalForm.subject || !proposalForm.permlink) {
-      toast.error('Please fill in all required fields');
+      toast.error('Please fill in all required fields.');
       return;
     }
 
@@ -108,7 +108,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       ];
 
       await steemOperations.broadcastOperation([operation], activeKey);
-      toast.success('Proposal created successfully!');
+      toast.success('Proposal created successfully.');
       
       // Reset form
       setProposalForm({
@@ -132,7 +132,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       // Check for duplicate transaction - treat as SUCCESS
       const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
       if (isDuplicate) {
-        toast.success('Proposal was already created!');
+        toast.success('Proposal has already been created.');
         setProposalForm({
           receiver: '',
           startDate: '',
@@ -143,7 +143,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
         });
         setPassword('');
       } else {
-        toast.error('Failed to create proposal');
+        toast.error('Failed to create proposal. Please try again.');
         createProposalSubmittedRef.current = false;
       }
       setIsLoading(false);
@@ -152,18 +152,18 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
 
   const handleRemoveProposal = async () => {
     if (!loggedInUser || !password) {
-      toast.error('Please enter your password');
+      toast.error('Password required. Please enter your password to continue.');
       return;
     }
 
     if (!removeForm.proposalIds) {
-      toast.error('Please enter proposal IDs to remove');
+      toast.error('Please enter proposal IDs to remove.');
       return;
     }
 
     const ids = removeForm.proposalIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
     if (ids.length === 0) {
-      toast.error('Please enter valid proposal IDs');
+      toast.error('Please enter valid proposal IDs.');
       return;
     }
 
@@ -189,7 +189,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       ];
 
       await steemOperations.broadcastOperation([operation], activeKey);
-      toast.success('Proposal(s) removed successfully!');
+      toast.success('Proposal(s) removed successfully.');
       
       // Reset form
       setRemoveForm({
@@ -208,11 +208,11 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       // Check for duplicate transaction - treat as SUCCESS
       const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
       if (isDuplicate) {
-        toast.success('Proposal(s) already removed!');
+        toast.success('Proposal(s) have already been removed.');
         setRemoveForm({ proposalIds: '' });
         setPassword('');
       } else {
-        toast.error('Failed to remove proposal');
+        toast.error('Failed to remove proposal. Please try again.');
         removeProposalSubmittedRef.current = false;
       }
       setIsLoading(false);
@@ -221,7 +221,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
 
   const handleWitnessSetProperties = async () => {
     if (!loggedInUser || !password) {
-      toast.error('Please enter your password');
+      toast.error('Password required. Please enter your password to continue.');
       return;
     }
 
@@ -264,7 +264,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       ];
 
       await steemOperations.broadcastOperation([operation], activeKey);
-      toast.success('Witness properties updated successfully!');
+      toast.success('Witness properties updated successfully.');
       
       // Reset form
       setSetPropsForm({
@@ -287,7 +287,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       // Check for duplicate transaction - treat as SUCCESS
       const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
       if (isDuplicate) {
-        toast.success('Witness properties already updated!');
+        toast.success('Witness properties have already been updated.');
         setSetPropsForm({
           accountCreationFee: '0.000 STEEM',
           accountSubsidyBudget: '10000',
@@ -301,7 +301,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
         });
         setPassword('');
       } else {
-        toast.error('Failed to update witness properties');
+        toast.error('Failed to update witness properties. Please try again.');
         witnessSetPropsSubmittedRef.current = false;
       }
       setIsLoading(false);
@@ -310,7 +310,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
 
   const handleWitnessUpdate = async () => {
     if (!loggedInUser || !password) {
-      toast.error('Please enter your password');
+      toast.error('Password required. Please enter your password to continue.');
       return;
     }
 
@@ -351,7 +351,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       ];
 
       await steemOperations.broadcastOperation([operation], activeKey);
-      toast.success('Witness updated successfully!');
+      toast.success('Witness updated successfully.');
       
       // Reset form
       setUpdateForm({
@@ -371,7 +371,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
       // Check for duplicate transaction - treat as SUCCESS
       const isDuplicate = error?.message?.includes('duplicate') || error?.jse_shortmsg?.includes('duplicate');
       if (isDuplicate) {
-        toast.success('Witness already updated!');
+        toast.success('Witness has already been updated.');
         setUpdateForm({
           url: '',
           blockSigningKey: '',
@@ -382,7 +382,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
         });
         setPassword('');
       } else {
-        toast.error('Failed to update witness');
+        toast.error('Failed to update witness. Please try again.');
         witnessUpdateSubmittedRef.current = false;
       }
       setIsLoading(false);
@@ -401,7 +401,7 @@ const WitnessManagement = ({ loggedInUser }: WitnessManagementProps) => {
         blockSigningKey: 'STM1111111111111111111111111111111114T1Anm'
       });
     }
-    toast.info('Signing key set to disable witness');
+    toast.info('Signing key has been set to disable the witness.');
   };
 
   if (!loggedInUser) {

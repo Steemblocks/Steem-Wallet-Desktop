@@ -58,6 +58,34 @@ export const useAccountHistory = (account: string, limit: number = 100) => {
   const [page, setPage] = useState(1);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [oldestLoadedIndex, setOldestLoadedIndex] = useState<number | null>(null);
+  
+  // Track previous account to detect changes
+  const [prevAccount, setPrevAccount] = useState<string>(account);
+
+  // Reset state when account changes
+  useEffect(() => {
+    if (account !== prevAccount) {
+      setPrevAccount(account);
+      setAllTransactions([]);
+      setOldestLoadedIndex(null);
+      setPage(1);
+      // Keep filter unchanged as user preference
+    }
+  }, [account, prevAccount]);
+
+  // Listen for account-switch event for immediate cleanup
+  useEffect(() => {
+    const handleAccountSwitch = () => {
+      setAllTransactions([]);
+      setOldestLoadedIndex(null);
+      setPage(1);
+    };
+
+    window.addEventListener('account-switch', handleAccountSwitch);
+    return () => {
+      window.removeEventListener('account-switch', handleAccountSwitch);
+    };
+  }, []);
 
   const { data: rawTransactions, isLoading, error, refetch } = useQuery({
     queryKey: ['accountHistory', account, limit],
@@ -68,7 +96,10 @@ export const useAccountHistory = (account: string, limit: number = 100) => {
         const history = await steemApi.getAccountHistory(account, -1, limit);
         return history || [];
       } catch (error) {
-        console.error('Error fetching account history:', error);
+        // Only log in development to reduce console noise in production
+        if (import.meta.env.DEV) {
+          console.error('Error fetching account history:', error);
+        }
         throw error;
       }
     },
@@ -150,7 +181,10 @@ export const useAccountHistory = (account: string, limit: number = 100) => {
         }
       }
     } catch (error) {
-      console.error('Error loading more transactions:', error);
+      // Only log in development to reduce console noise in production
+      if (import.meta.env.DEV) {
+        console.error('Error loading more transactions:', error);
+      }
     }
   };
 

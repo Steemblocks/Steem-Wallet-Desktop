@@ -96,14 +96,14 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
       if (isDuplicate) {
         toast({
           title: "Rewards Already Claimed",
-          description: "Your rewards were already claimed.",
+          description: "Your rewards have already been claimed successfully.",
           variant: "success",
         });
         onUpdate?.();
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to claim rewards. Please try again.",
+          title: "Claim Rewards Failed",
+          description: "Unable to claim rewards. Please check your connection and try again.",
           variant: "destructive",
         });
         // Only reset ref on genuine errors to allow retry
@@ -123,8 +123,8 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
     
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Posting, Active, or Owner key required for this operation",
+        title: "Posting Key Required",
+        description: "A posting, active, or owner key is required to claim rewards. Please import your key in Account settings.",
         variant: "destructive",
       });
       claimSubmittedRef.current = false;
@@ -148,8 +148,8 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
       );
       
       toast({
-        title: "Rewards Claimed Successfully",
-        description: "Your pending rewards have been claimed and added to your wallet",
+        title: "Rewards Claimed",
+        description: "Your pending rewards have been successfully claimed and added to your balance.",
         variant: "success",
       });
       // Call onUpdate to refresh data without page reload
@@ -162,7 +162,7 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
       if (isDuplicate) {
         toast({
           title: "Rewards Already Claimed",
-          description: "Your rewards were already claimed successfully.",
+          description: "Your rewards have already been claimed successfully.",
           variant: "success",
         });
         onUpdate?.();
@@ -170,10 +170,10 @@ const PendingRewards = ({ account, onUpdate }: PendingRewardsProps) => {
         return;
       }
       
-      const errorMessage = error.jse_shortmsg || error.message || "Operation failed";
+      const errorMessage = error.jse_shortmsg || error.message || "Failed to claim rewards";
       
       toast({
-        title: "Operation Failed",
+        title: "Claim Rewards Failed",
         description: errorMessage,
         variant: "destructive",
       });

@@ -74,8 +74,8 @@ const DelegationConfirmDialog = ({
       
       if (!privateKeyString) {
         toast({
-          title: "Private Key Not Found",
-          description: "Active or Owner key required for delegation operations",
+          title: "Active Key Required",
+          description: "Your Active or Owner key is required for delegation operations. Please ensure your keys are properly imported.",
           variant: "destructive",
         });
         transactionSubmittedRef.current = false;
@@ -95,7 +95,7 @@ const DelegationConfirmDialog = ({
       
       toast({
         title: "Delegation Successful",
-        description: `Delegated ${amount} SP to @${delegatee}`,
+        description: `Successfully delegated ${amount} SP to @${delegatee}.`,
         variant: "success",
       });
       
@@ -113,7 +113,7 @@ const DelegationConfirmDialog = ({
       
       if (isDuplicate) {
         toast({
-          title: "Transaction Already Processed",
+          title: "Delegation Already Processed",
           description: "This delegation was already submitted successfully.",
           variant: "success",
         });

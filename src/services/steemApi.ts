@@ -287,6 +287,9 @@ export class SteemApiService {
       }
     }
 
+    // Track which endpoints were tried for better error reporting
+    const failedEndpoints: string[] = [];
+
     // Try each endpoint using the CORS-bypassing HTTP client
     for (let attempt = 0; attempt < endpointsToTry.length; attempt++) {
       const endpoint = endpointsToTry[attempt];
@@ -306,15 +309,19 @@ export class SteemApiService {
         return response.result;
       } catch (error) {
         lastError = error as Error;
-        // Only log on last attempt or if not a common fallback scenario
+        failedEndpoints.push(endpoint);
+        // Only log detailed error on last attempt
         if (attempt === endpointsToTry.length - 1) {
-          console.error(`All endpoints failed for ${method}:`, error);
+          // In production, use console.warn to reduce noise
+          const logFn = import.meta.env.DEV ? console.error : console.warn;
+          logFn(`[SteemAPI] All ${failedEndpoints.length} endpoints failed for ${method}. Primary: ${primaryEndpoint}`, error);
         }
       }
     }
 
-    // All endpoints exhausted, throw the last error
-    throw lastError || new Error('All API endpoints failed');
+    // All endpoints exhausted, throw the last error with better context
+    const errorMsg = `Request failed: All API endpoints unavailable. Primary: ${primaryEndpoint}`;
+    throw new Error(errorMsg);
   }
 
   async getAccounts(usernames: string[]): Promise<SteemAccount[]> {

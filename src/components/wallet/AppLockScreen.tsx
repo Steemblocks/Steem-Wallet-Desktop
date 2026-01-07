@@ -240,17 +240,19 @@ export const AppLockScreen = ({ onUnlock, onReset }: AppLockScreenProps) => {
                   <AlertTriangle className="h-5 w-5" />
                   Reset Entire App?
                 </AlertDialogTitle>
-                <AlertDialogDescription className="space-y-2">
-                  <p>This will permanently delete:</p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Your app lock password</li>
-                    <li>All saved Steem accounts</li>
-                    <li>All stored private keys</li>
-                    <li>All app settings</li>
-                  </ul>
-                  <p className="font-medium text-amber-400 mt-2">
-                    You will need to log in again with your Steem master password or private keys.
-                  </p>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">This will permanently delete:</p>
+                    <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                      <li>Your app lock password</li>
+                      <li>All saved Steem accounts</li>
+                      <li>All stored private keys</li>
+                      <li>All app settings</li>
+                    </ul>
+                    <p className="font-medium text-amber-400 mt-2">
+                      You will need to log in again with your Steem master password or private keys.
+                    </p>
+                  </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

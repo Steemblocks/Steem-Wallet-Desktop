@@ -105,8 +105,8 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
         onUpdate?.();
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to cancel power down. Please try again.",
+          title: "Cancellation Failed",
+          description: "Unable to cancel power down. Please try again.",
           variant: "destructive",
         });
         // Only reset ref on genuine errors to allow retry
@@ -121,8 +121,8 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
     const privateKeyString = await getDecryptedKey(username!, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for this operation",
+        title: "Active Key Required",
+        description: "An active key is required to cancel power down. Please import your key in Account settings.",
         variant: "destructive",
       });
       cancelSubmittedRef.current = false;
@@ -136,7 +136,7 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
       
       toast({
         title: "Power Down Cancelled",
-        description: "Your power down has been successfully cancelled",
+        description: "Your power down has been successfully cancelled.",
         variant: "success",
       });
       onUpdate?.();
@@ -164,7 +164,7 @@ const PowerDownStatus = ({ account, onUpdate }: PowerDownStatusProps) => {
       }
       
       toast({
-        title: "Operation Failed",
+        title: "Cancellation Failed",
         description: errorMessage,
         variant: "destructive",
       });

@@ -6,6 +6,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { accountManager } from '@/services/accountManager';
 import { SecureStorageFactory } from '@/services/secureStorage';
+import { SessionExpiredError } from '@/services/encryptedKeyStorage';
+
+// Re-export SessionExpiredError for callers to use
+export { SessionExpiredError };
 
 interface UseSecureKeysResult {
   username: string | null;
@@ -127,36 +131,46 @@ export async function getDecryptedKey(
   usernameOrKeyType: string | 'owner' | 'active' | 'posting' | 'memo',
   keyTypeOrUndefined?: 'owner' | 'active' | 'posting' | 'memo'
 ): Promise<string | null> {
+  let username: string | null;
+  let keyType: 'owner' | 'active' | 'posting' | 'memo';
+  
+  // Support both calling conventions:
+  // getDecryptedKey('active') - gets username from storage
+  // getDecryptedKey('john', 'active') - uses provided username
+  if (keyTypeOrUndefined !== undefined) {
+    // Two arguments: first is username, second is keyType
+    username = usernameOrKeyType;
+    keyType = keyTypeOrUndefined;
+  } else {
+    // One argument: it's the keyType, get username from storage
+    keyType = usernameOrKeyType as 'owner' | 'active' | 'posting' | 'memo';
+    const storage = SecureStorageFactory.getInstance();
+    username = await storage.getItem('steem_username');
+  }
+  
+  if (!username) {
+    console.error('No username available');
+    return null;
+  }
+  
   try {
-    let username: string | null;
-    let keyType: 'owner' | 'active' | 'posting' | 'memo';
-    
-    // Support both calling conventions:
-    // getDecryptedKey('active') - gets username from storage
-    // getDecryptedKey('john', 'active') - uses provided username
-    if (keyTypeOrUndefined !== undefined) {
-      // Two arguments: first is username, second is keyType
-      username = usernameOrKeyType;
-      keyType = keyTypeOrUndefined;
-    } else {
-      // One argument: it's the keyType, get username from storage
-      keyType = usernameOrKeyType as 'owner' | 'active' | 'posting' | 'memo';
-      const storage = SecureStorageFactory.getInstance();
-      username = await storage.getItem('steem_username');
-    }
-    
-    if (!username) {
-      console.error('No username available');
-      return null;
-    }
-    
     // Try encrypted storage first
     const decryptedKey = await accountManager.getDecryptedKey(username, keyType);
     if (decryptedKey) {
       return decryptedKey;
     }
-    
-    // Fallback to legacy storage formats (in order of preference)
+  } catch (err) {
+    // Re-throw SessionExpiredError so callers can handle it
+    // The event is already dispatched by encryptedKeyStorage
+    if (err instanceof SessionExpiredError) {
+      throw err;
+    }
+    // Log other errors but continue to fallback
+    console.error(`Error getting ${keyType} key from encrypted storage:`, err);
+  }
+  
+  // Fallback to legacy storage formats (in order of preference)
+  try {
     const storage = SecureStorageFactory.getInstance();
     
     // Try account-specific legacy key: account_{username}_{type}_key
@@ -172,12 +186,11 @@ export async function getDecryptedKey(
       console.warn(`Using legacy global ${keyType} key - consider re-logging in`);
       return globalLegacyKey;
     }
-    
-    return null;
   } catch (err) {
-    console.error(`Error getting key:`, err);
-    return null;
+    console.error(`Error getting legacy ${keyType} key:`, err);
   }
+  
+  return null;
 }
 
 export default useSecureKeys;

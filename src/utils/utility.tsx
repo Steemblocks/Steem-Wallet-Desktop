@@ -121,3 +121,34 @@ export const openExternalUrl = async (url: string): Promise<void> => {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 };
+
+/**
+ * Default avatar as a data URI (simple user silhouette)
+ * This is used when external avatar services fail
+ */
+export const DEFAULT_AVATAR_DATA_URI = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzY0NzQ4YiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
+
+/**
+ * Get avatar URL for a Steem username
+ * @param username The Steem username
+ * @param size Optional size ('small' for smaller image)
+ * @returns The avatar URL
+ */
+export const getAvatarUrl = (username: string, size?: 'small'): string => {
+  if (!username) return DEFAULT_AVATAR_DATA_URI;
+  const sizeSuffix = size ? `/${size}` : '';
+  return `https://steemitimages.com/u/${username}/avatar${sizeSuffix}`;
+};
+
+/**
+ * Handle avatar image error by setting a fallback
+ * Use this as the onError handler for avatar img elements
+ * @param event The error event
+ */
+export const handleAvatarError = (event: React.SyntheticEvent<HTMLImageElement>): void => {
+  const img = event.target as HTMLImageElement;
+  // Prevent infinite loop by checking if we're already using the fallback
+  if (img.src !== DEFAULT_AVATAR_DATA_URI) {
+    img.src = DEFAULT_AVATAR_DATA_URI;
+  }
+};

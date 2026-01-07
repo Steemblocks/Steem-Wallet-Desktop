@@ -195,11 +195,28 @@ export const useAccountUpdates = (username: string | null, enabled: boolean = tr
   const [accountData, setAccountData] = useState<AccountUpdateData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Listen for account-switch event to immediately clear stale data
+  useEffect(() => {
+    const handleAccountSwitch = () => {
+      setAccountData(null);
+      setIsLoading(true);
+    };
+
+    window.addEventListener('account-switch', handleAccountSwitch);
+    return () => {
+      window.removeEventListener('account-switch', handleAccountSwitch);
+    };
+  }, []);
+
   useEffect(() => {
     if (!enabled || !username) {
       setIsLoading(false);
       return;
     }
+
+    // Reset state when username changes to prevent showing stale data
+    setAccountData(null);
+    setIsLoading(true);
 
     steemWebSocket.connect().catch(console.error);
 

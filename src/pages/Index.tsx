@@ -61,6 +61,7 @@ const Index = () => {
     data: walletContextData,
     isInitialLoading,
     isRefreshing,
+    isSwitchingAccount,
     loadingProgress,
     loadingStage,
     error,
@@ -230,6 +231,25 @@ const Index = () => {
     timeout: autoLockTimeout * 60 * 1000, // Convert minutes to milliseconds
   });
 
+  // Listen for session-expired events (when password cache expires)
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      if (isAppLockSetup && !isAppLocked) {
+        setIsAppLocked(true);
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please unlock the app to continue.",
+          variant: "default",
+        });
+      }
+    };
+
+    window.addEventListener("session-expired", handleSessionExpired);
+    return () => {
+      window.removeEventListener("session-expired", handleSessionExpired);
+    };
+  }, [isAppLockSetup, isAppLocked, toast]);
+
   // Load app settings (including auto reward claiming and auto lock timeout)
   useEffect(() => {
     const loadAppSettings = async () => {
@@ -286,12 +306,15 @@ const Index = () => {
     onRewardsClaimed: refreshAll,
   });
 
-  // Sync selected account with context when URL changes
+  // Sync selected account with context when URL changes (but not during switchAccount)
   useEffect(() => {
+    // Skip if we're in the middle of switching accounts - switchAccount handles this
+    if (isSwitchingAccount) return;
+    
     if (selectedAccount && selectedAccount !== contextSelectedAccount) {
       setSelectedAccount(selectedAccount);
     }
-  }, [selectedAccount, contextSelectedAccount, setSelectedAccount]);
+  }, [selectedAccount, contextSelectedAccount, setSelectedAccount, isSwitchingAccount]);
 
   // Load login method from storage
   useEffect(() => {
@@ -337,16 +360,19 @@ const Index = () => {
   const handleAccountSwitch = useCallback(
     (username: string) => {
       // Reset to overview tab for fresh start with new account
+      // The centralized switchAccount in context handles everything else:
+      // - WebSocket cleanup
+      // - Cache clearing
+      // - State reset
+      // - Fresh data fetch
+      // - Setting loggedInUser and selectedAccount
       setActiveTab("overview");
-      setLoggedInUser(username);
-      setSelectedAccount(username);
-      // Login method will be loaded from storage by accountManager
     },
-    [setLoggedInUser, setSelectedAccount, setActiveTab]
+    [setActiveTab]
   );
 
-  // Show preloading screen while initial data is loading
-  if (isInitialLoading && selectedAccount) {
+  // Show preloading screen while initial data is loading or switching accounts
+  if ((isInitialLoading && selectedAccount) || isSwitchingAccount) {
     return <AppLoadingScreen progress={loadingProgress} stage={loadingStage} />;
   }
 

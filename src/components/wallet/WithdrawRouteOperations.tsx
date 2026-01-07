@@ -65,8 +65,8 @@ const WithdrawRouteOperations = () => {
   const handleSetWithdrawRoute = async () => {
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to perform this operation",
+        title: "Authentication Required",
+        description: "Please log in to manage withdraw routes.",
         variant: "destructive",
       });
       return;
@@ -131,8 +131,8 @@ const WithdrawRouteOperations = () => {
         setTimeout(() => loadWithdrawRoutes(), 2000);
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to set withdraw route. Please try again.",
+          title: "Route Configuration Failed",
+          description: "Unable to set withdraw route. Please try again.",
           variant: "destructive",
         });
         setRouteSubmittedRef.current = false;
@@ -179,8 +179,8 @@ const WithdrawRouteOperations = () => {
         setTimeout(() => loadWithdrawRoutes(), 2000);
       } else {
         toast({
-          title: "Operation Failed",
-          description: "Failed to remove withdraw route. Please try again.",
+          title: "Route Removal Failed",
+          description: "Unable to remove withdraw route. Please try again.",
           variant: "destructive",
         });
         removeRouteSubmittedRef.current.delete(toAccount);
@@ -194,8 +194,8 @@ const WithdrawRouteOperations = () => {
     const privateKeyString = await getDecryptedKey(username, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active key required for this operation",
+        title: "Active Key Required",
+        description: "An active key is required to manage withdraw routes. Please import your key in Account settings.",
         variant: "destructive",
       });
       if (action === 'set') {
@@ -282,7 +282,7 @@ const WithdrawRouteOperations = () => {
       }
       
       toast({
-        title: "Operation Failed",
+        title: "Route Configuration Failed",
         description: errorMessage,
         variant: "destructive",
       });

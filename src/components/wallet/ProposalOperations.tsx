@@ -85,8 +85,8 @@ const ProposalOperations = () => {
   const handleVoteProposal = async (proposalId: number, approve: boolean) => {
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to vote on proposals",
+        title: "Authentication Required",
+        description: "Please log in to vote on proposals.",
         variant: "destructive",
       });
       return;
@@ -142,8 +142,8 @@ const ProposalOperations = () => {
   const handleBulkVote = async (approve: boolean) => {
     if (!isLoggedIn) {
       toast({
-        title: "Login Required",
-        description: "Please login to vote on proposals",
+        title: "Authentication Required",
+        description: "Please log in to vote on proposals.",
         variant: "destructive",
       });
       return;
@@ -221,8 +221,8 @@ const ProposalOperations = () => {
     const privateKeyString = await getDecryptedKey(username, 'posting');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Posting key required for voting",
+        title: "Posting Key Required",
+        description: "A posting key is required for voting. Please import your key in Account settings.",
         variant: "destructive",
       });
       transactionSubmittedRef.current = false;
@@ -283,7 +283,7 @@ const ProposalOperations = () => {
       }
       
       toast({
-        title: "Operation Failed",
+        title: "Vote Failed",
         description: errorMessage,
         variant: "destructive",
       });

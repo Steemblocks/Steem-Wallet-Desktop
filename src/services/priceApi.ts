@@ -112,7 +112,8 @@ export class PriceApiService {
     try {
       // Fetch both STEEM and SBD in a single API call
       const response = await fetch(
-        `${this.COINGECKO_MARKETS_URL}?vs_currency=usd&ids=steem,steem-dollars&order=market_cap_desc&sparkline=false`
+        `${this.COINGECKO_MARKETS_URL}?vs_currency=usd&ids=steem,steem-dollars&order=market_cap_desc&sparkline=false`,
+        { signal: AbortSignal.timeout(10000) } // 10 second timeout
       );
 
       if (!response.ok) {
@@ -132,7 +133,11 @@ export class PriceApiService {
 
       return result;
     } catch (error) {
-      console.error('Error fetching market data from CoinGecko:', error);
+      // Only log in development, as CoinGecko may be rate-limited or blocked
+      // The app falls back to Steem's internal market for pricing
+      if (import.meta.env.DEV) {
+        console.warn('CoinGecko price fetch failed (using fallback):', error instanceof Error ? error.message : 'Unknown error');
+      }
       return {
         steem: defaultSteemData,
         sbd: defaultSbdData,

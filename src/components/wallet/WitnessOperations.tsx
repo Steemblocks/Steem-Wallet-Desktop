@@ -26,6 +26,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as dsteem from 'dsteem';
 import { SecureStorageFactory } from '@/services/secureStorage';
 import { getDecryptedKey } from '@/hooks/useSecureKeys';
+import { getAvatarUrl, handleAvatarError } from '@/utils/utility';
 
 interface WitnessOperationsProps {
   loggedInUser?: string | null;
@@ -37,6 +38,99 @@ interface VoteConfirmation {
   witnessName: string;
   isVoting: boolean; // true = vote, false = unvote
 }
+
+// Witness item component with avatar caching
+interface WitnessItemProps {
+  witness: any;
+  loggedInUser: string | null | undefined;
+  currentProxy: string;
+  processingWitness: string | null;
+  onVote: (witnessName: string) => void;
+  onInfo: (url: string, name: string) => void;
+}
+
+const WitnessItem = ({ witness, loggedInUser, currentProxy, processingWitness, onVote, onInfo }: WitnessItemProps) => {
+  return (
+    <div className={`border border-slate-700 rounded-lg p-3 sm:p-4 bg-slate-800/30 ${witness.isDisabled ? 'opacity-60' : ''}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 sm:mb-2">
+            <img 
+              src={getAvatarUrl(witness.name)}
+              alt={witness.name}
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-slate-600 flex-shrink-0"
+              loading="lazy"
+              onError={handleAvatarError}
+            />
+            <span className={`font-medium text-slate-300 text-sm sm:text-base ${witness.isDisabled ? 'line-through' : ''}`}>#{witness.rank}</span>
+            <span className={`font-semibold text-white truncate text-sm sm:text-base ${witness.isDisabled ? 'line-through' : ''}`}>@{witness.name}</span>
+            {witness.voted && (
+              <Badge className="bg-[#07d7a9] text-white text-xs">
+                <UserCheck className="w-3 h-3 mr-1" />
+                Voted
+              </Badge>
+            )}
+            {witness.isDisabledByKey && (
+              <Badge variant="outline" className="text-red-500 border-red-300 text-xs">
+                Disabled
+              </Badge>
+            )}
+            {witness.hasInvalidVersion && (
+              <>
+                <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs">
+                  Invalid Version
+                </Badge>
+                <Badge variant="outline" className="text-red-500 border-red-300 text-xs">
+                  Rejected
+                </Badge>
+              </>
+            )}
+          </div>
+          <div className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-slate-400 ${witness.isDisabled ? 'line-through' : ''}`}>
+            <div className="flex items-center gap-1">
+              <span>Votes: {witness.votes}</span>
+            </div>
+            <span className="hidden sm:inline">•</span>
+            <span>Last Block: {witness.lastBlock}</span>
+            <span className="hidden sm:inline">•</span>
+            <span>Version: {witness.version}</span>
+            <span className="hidden sm:inline">•</span>
+            <span>Missed: {witness.missedBlocks}</span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={witness.voted ? "destructive" : "default"}
+            onClick={() => onVote(witness.name)}
+            className={`text-xs sm:text-sm px-2 sm:px-4 ${
+              !witness.voted 
+                ? 'text-white' 
+                : ''
+            }`}
+            style={!witness.voted ? { backgroundColor: '#07d7a9' } : {}}
+            disabled={!loggedInUser || !!currentProxy || processingWitness === witness.name}
+          >
+            {processingWitness === witness.name ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              witness.voted ? "Unvote" : "Vote"
+            )}
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="text-xs sm:text-sm px-2 sm:px-3"
+            onClick={() => onInfo(witness.url, witness.name)}
+          >
+            <ExternalLink className="w-3 h-3 mr-1" />
+            Info
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
   const [proxyAccount, setProxyAccount] = useState("");
@@ -103,8 +197,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
   const handleVote = async (witnessName: string, isVoting: boolean) => {
     if (!loggedInUser) {
       toast({
-        title: "Login Required",
-        description: "Please log in to vote for witnesses",
+        title: "Authentication Required",
+        description: "Please log in to vote for witnesses.",
         variant: "destructive",
       });
       return;
@@ -143,8 +237,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
     const privateKeyString = await getDecryptedKey(account, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Private key not found",
+        title: "Active Key Required",
+        description: "An active key is required to vote for witnesses. Please import your key in Account settings.",
         variant: "destructive",
       });
       return;
@@ -155,8 +249,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
       await steemOperations.voteWitness(account, witness, approve, privateKey);
       
       toast({
-        title: "Vote Successful",
-        description: `${approve ? "Voted for" : "Removed vote from"} witness @${witness}`,
+        title: "Witness Vote Submitted",
+        description: `Successfully ${approve ? "voted for" : "removed vote from"} witness @${witness}.`,
         variant: "success",
       });
       
@@ -167,8 +261,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
     } catch (error: any) {
       console.error('Witness vote error:', error);
       toast({
-        title: "Vote Failed",
-        description: error.message || "Failed to vote for witness",
+        title: "Witness Vote Failed",
+        description: error.message || "Unable to submit witness vote. Please try again.",
         variant: "destructive",
       });
     }
@@ -178,8 +272,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
     if (!proxyAccount) return;
     if (!loggedInUser) {
       toast({
-        title: "Login Required",
-        description: "Please log in to set a witness proxy",
+        title: "Authentication Required",
+        description: "Please log in to set a witness proxy.",
         variant: "destructive",
       });
       return;
@@ -249,8 +343,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
     const privateKeyString = await getDecryptedKey(account, 'active');
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Private key not found",
+        title: "Active Key Required",
+        description: "Your active key is required to update witness proxy. Please ensure your keys are properly imported.",
         variant: "destructive",
       });
       return;
@@ -266,8 +360,8 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
       }
       
       toast({
-        title: "Proxy Updated",
-        description: proxy ? `Set @${proxy} as your witness proxy` : "Removed witness proxy",
+        title: "Proxy Updated Successfully",
+        description: proxy ? `@${proxy} is now your witness voting proxy.` : "Your witness proxy has been removed.",
         variant: "success",
       });
       
@@ -281,7 +375,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
       console.error('Proxy update error:', error);
       toast({
         title: "Proxy Update Failed",
-        description: error.message || "Failed to update proxy",
+        description: error.message || "Unable to update witness proxy. Please try again.",
         variant: "destructive",
       });
     }
@@ -293,7 +387,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
     } else {
       toast({
         title: "No Information Available",
-        description: `@${witnessName} has not provided a witness information URL`,
+        description: `@${witnessName} has not provided a witness information URL.`,
       });
     }
   };
@@ -467,89 +561,17 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
                   </div>
                 ) : (
                   <div className="space-y-2 sm:space-y-3">
-                    {filteredWitnesses.map((witness) => {
-                      return (
-                        <div key={witness.name} className={`border border-slate-700 rounded-lg p-3 sm:p-4 bg-slate-800/30 ${witness.isDisabled ? 'opacity-60' : ''}`}>
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 sm:mb-2">
-                                <img 
-                                  src={`https://steemitimages.com/u/${witness.name}/avatar`}
-                                  alt={witness.name}
-                                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-slate-600 flex-shrink-0"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%23475569' width='64' height='64'/%3E%3Ctext x='50%25' y='50%25' font-size='32' fill='%2394a3b8' text-anchor='middle' dy='.3em'%3E%3E%3C/text%3E%3C/svg%3E`;
-                                  }}
-                                />
-                                <span className={`font-medium text-slate-300 text-sm sm:text-base ${witness.isDisabled ? 'line-through' : ''}`}>#{witness.rank}</span>
-                                <span className={`font-semibold text-white truncate text-sm sm:text-base ${witness.isDisabled ? 'line-through' : ''}`}>@{witness.name}</span>
-                                {witness.voted && (
-                                  <Badge className="bg-[#07d7a9] text-white text-xs">
-                                    <UserCheck className="w-3 h-3 mr-1" />
-                                    Voted
-                                  </Badge>
-                                )}
-                                {witness.isDisabledByKey && (
-                                  <Badge variant="outline" className="text-red-500 border-red-300 text-xs">
-                                    Disabled
-                                  </Badge>
-                                )}
-                                {witness.hasInvalidVersion && (
-                                  <>
-                                    <Badge variant="outline" className="text-orange-500 border-orange-300 text-xs">
-                                      Invalid Version
-                                    </Badge>
-                                    <Badge variant="outline" className="text-red-500 border-red-300 text-xs">
-                                      Rejected
-                                    </Badge>
-                                  </>
-                                )}
-                              </div>
-                              <div className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-slate-400 ${witness.isDisabled ? 'line-through' : ''}`}>
-                                <div className="flex items-center gap-1">
-                                  <span>Votes: {witness.votes}</span>
-                                </div>
-                                <span className="hidden sm:inline">•</span>
-                                <span>Last Block: {witness.lastBlock}</span>
-                                <span className="hidden sm:inline">•</span>
-                                <span>Version: {witness.version}</span>
-                                <span className="hidden sm:inline">•</span>
-                                <span>Missed: {witness.missedBlocks}</span>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={witness.voted ? "destructive" : "default"}
-                                onClick={() => confirmVote(witness.name, !witness.voted)}
-                                className={`text-xs sm:text-sm px-2 sm:px-4 ${
-                                  !witness.voted 
-                                    ? 'text-white' 
-                                    : ''
-                                }`}
-                                style={!witness.voted ? { backgroundColor: '#07d7a9' } : {}}
-                                disabled={!loggedInUser || !!currentProxy || processingWitness === witness.name}
-                              >
-                                {processingWitness === witness.name ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  witness.voted ? "Unvote" : "Vote"
-                                )}
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="text-xs sm:text-sm px-2 sm:px-3"
-                                onClick={() => handleWitnessInfo(witness.url, witness.name)}
-                              >
-                                <ExternalLink className="w-3 h-3 mr-1" />
-                                Info
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {filteredWitnesses.map((witness) => (
+                      <WitnessItem
+                        key={witness.name}
+                        witness={witness}
+                        loggedInUser={loggedInUser}
+                        currentProxy={currentProxy}
+                        processingWitness={processingWitness}
+                        onVote={(name) => confirmVote(name, !witness.voted)}
+                        onInfo={handleWitnessInfo}
+                      />
+                    ))}
                   </div>
                 )}
               </CardContent>

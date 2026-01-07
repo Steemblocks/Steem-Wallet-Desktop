@@ -18,6 +18,29 @@ import { SecureStorageFactory } from './secureStorage';
 const ENCRYPTED_KEY_PREFIX = 'encrypted_';
 const KEY_ENCRYPTION_ENABLED = 'key_encryption_enabled';
 
+/**
+ * Custom error class for session expiration
+ * This allows callers to distinguish between "no key exists" and "session expired"
+ */
+export class SessionExpiredError extends Error {
+  constructor(message: string = 'Session expired. Please lock and unlock the app to continue.') {
+    super(message);
+    this.name = 'SessionExpiredError';
+  }
+}
+
+/**
+ * Dispatch a session expired event that the app can listen to
+ * This allows the app to show the lock screen when the session expires
+ */
+export function dispatchSessionExpiredEvent(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('session-expired', {
+      detail: { reason: 'Password cache expired' }
+    }));
+  }
+}
+
 export interface EncryptedKeyData {
   ciphertext: string;
   nonce: string;
@@ -156,7 +179,9 @@ class EncryptedKeyStorageService {
   private getPassword(providedPassword?: string): string {
     const password = providedPassword || this.cachedPassword;
     if (!password) {
-      throw new Error('Session expired. Please lock and unlock the app to continue.');
+      // Dispatch event so the app can show the lock screen
+      dispatchSessionExpiredEvent();
+      throw new SessionExpiredError();
     }
     
     // Refresh the cache timeout when password is used (keeps session active)

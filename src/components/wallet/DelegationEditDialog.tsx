@@ -55,7 +55,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
     if (!username) {
       toast({
         title: "Authentication Required",
-        description: "Please log in to edit delegations",
+        description: "Please log in to manage delegations.",
         variant: "destructive",
       });
       return;
@@ -86,7 +86,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
       
       if (isDuplicate) {
         toast({
-          title: "Transaction Already Processed",
+          title: "Update Already Processed",
           description: "This delegation update was already submitted successfully.",
           variant: "success",
         });
@@ -111,7 +111,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
       const errorMessage = getErrorMessage();
       
       toast({
-        title: "Operation Failed",
+        title: "Delegation Update Failed",
         description: errorMessage,
         variant: "destructive",
       });
@@ -129,8 +129,8 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
     
     if (!privateKeyString) {
       toast({
-        title: "Private Key Not Found",
-        description: "Active or Owner key required for delegation operations",
+        title: "Active Key Required",
+        description: "Your Active or Owner key is required for delegation operations. Please ensure your keys are properly imported.",
         variant: "destructive",
       });
       return;
@@ -146,7 +146,7 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
     
     toast({
       title: "Delegation Updated",
-      description: `Successfully updated delegation to @${delegatee}`,
+      description: `Successfully updated delegation to @${delegatee}.`,
       variant: "success",
     });
     setIsOpen(false);
@@ -176,8 +176,8 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
       
       if (isDuplicate) {
         toast({
-          title: "Transaction Already Processed",
-          description: "This delegation removal was already submitted successfully.",
+          title: "Removal Already Processed",
+          description: "This delegation removal has already been completed successfully.",
           variant: "success",
         });
         setIsOpen(false);
@@ -186,8 +186,8 @@ const DelegationEditDialog = ({ delegation, onSuccess, steemPerMvests }: Delegat
       }
       
       toast({
-        title: "Operation Failed",
-        description: "Failed to remove delegation. Please try again.",
+        title: "Delegation Removal Failed",
+        description: "Unable to remove delegation. Please check your connection and try again.",
         variant: "destructive",
       });
       setIsProcessing(false);
