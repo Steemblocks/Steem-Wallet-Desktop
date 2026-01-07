@@ -110,9 +110,7 @@ const GovernanceOperations = () => {
   // Clear local changes when server data updates (after invalidation refreshes)
   useEffect(() => {
     // When server data changes, clear local optimistic changes that are now reflected in server
-    if (serverUserVotes.length > 0 || localVoteChanges.added.length > 0 || localVoteChanges.removed.length > 0) {
-      setLocalVoteChanges({ added: [], removed: [] });
-    }
+    setLocalVoteChanges({ added: [], removed: [] });
   }, [serverUserVotes]);
   
   // Combine server data with local optimistic changes
