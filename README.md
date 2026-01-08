@@ -2,7 +2,7 @@
 
 A secure, cross-platform desktop wallet for the Steem blockchain built with Tauri, React, and Rust.
 
-![Version](https://img.shields.io/badge/version-0.1.4-blue)
+![Version](https://img.shields.io/badge/version-0.1.5-blue)
 ![License](https://img.shields.io/badge/license-Non--Commercial-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
@@ -367,6 +367,20 @@ For commercial licensing inquiries, contact the maintainers.
 ---
 
 ## Changelog
+
+### Version 0.1.5 (January 2026)
+**Improvements**
+- Added app version display in App Settings → App Updates section
+- Fixed Account switch data loading issues, UI UX data sync issues
+- Fixed external links not opening in browser (Witness Info, Governance View, Source Code buttons)
+- Updated "View Source Code" and "All Releases" buttons to properly open in system browser
+- Improve notification messages and error handling 
+- Improved lock screen message to reflect configurable auto-lock timeout
+
+**Code Quality**
+- Replaced `window.open()` with Tauri's `openExternalUrl` utility across all components
+- Cleaned up unused auto-update code and dependencies
+- Removed tauri-plugin-updater (simplified release process)
 
 ### Version 0.1.4 (January 2026)
 **Bug Fixes**

@@ -20,7 +20,7 @@ import { steemApi, SteemProposal } from "@/services/steemApi";
 import * as dsteem from 'dsteem';
 import { steemOperations } from '@/services/steemOperations';
 // Import your utility functions
-import { getSteemPerMvests, vestsToSteem } from '@/utils/utility';
+import { getSteemPerMvests, vestsToSteem, openExternalUrl } from '@/utils/utility';
 import { SecureStorageFactory } from '@/services/secureStorage';
 import { getDecryptedKey } from '@/hooks/useSecureKeys';
 import { useProposals, useUserProposalVotes, useInvalidateProposals } from '@/hooks/useProposals';
@@ -549,7 +549,7 @@ const GovernanceOperations = () => {
                               )}
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" className="text-xs sm:text-sm px-2 sm:px-3" onClick={() => window.open(`https://steemit.com/@${proposal.creator}/${proposal.permlink}`, '_blank')}>
+                          <Button size="sm" variant="outline" className="text-xs sm:text-sm px-2 sm:px-3" onClick={() => openExternalUrl(`https://steemit.com/@${proposal.creator}/${proposal.permlink}`)}>
                             <ExternalLink className="w-3 h-3 sm:mr-1" />
                             <span className="hidden sm:inline">View</span>
                           </Button>
@@ -616,7 +616,7 @@ const GovernanceOperations = () => {
                         <div className="flex items-center gap-1 text-xs sm:text-sm">
                           <VoteDisplay totalVotes={proposal.total_votes} steemPerMvests={steemPerMvests} />
                         </div>
-                        <Button size="sm" variant="outline" className="text-xs sm:text-sm px-2 sm:px-3" onClick={() => window.open(`https://steemit.com/@${proposal.creator}/${proposal.permlink}`, '_blank')}>
+                        <Button size="sm" variant="outline" className="text-xs sm:text-sm px-2 sm:px-3" onClick={() => openExternalUrl(`https://steemit.com/@${proposal.creator}/${proposal.permlink}`)}>
                           <ExternalLink className="w-3 h-3 sm:mr-1" />
                           <span className="hidden sm:inline">View Post</span>
                         </Button>

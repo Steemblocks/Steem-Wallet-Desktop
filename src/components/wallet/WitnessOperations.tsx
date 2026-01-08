@@ -26,7 +26,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as dsteem from 'dsteem';
 import { SecureStorageFactory } from '@/services/secureStorage';
 import { getDecryptedKey } from '@/hooks/useSecureKeys';
-import { getAvatarUrl, handleAvatarError } from '@/utils/utility';
+import { getAvatarUrl, handleAvatarError, openExternalUrl } from '@/utils/utility';
 
 interface WitnessOperationsProps {
   loggedInUser?: string | null;
@@ -383,7 +383,7 @@ const WitnessOperations = ({ loggedInUser }: WitnessOperationsProps) => {
 
   const handleWitnessInfo = (witnessUrl: string, witnessName: string) => {
     if (witnessUrl && witnessUrl !== '') {
-      window.open(witnessUrl, '_blank');
+      openExternalUrl(witnessUrl);
     } else {
       toast({
         title: "No Information Available",

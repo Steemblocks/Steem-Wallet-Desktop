@@ -39,11 +39,20 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SecureStorageFactory } from "@/services/secureStorage";
 import { refreshClient } from "@/services/steemOperations";
 import { steemWebSocket } from "@/services/steemWebSocket";
+import { openExternalUrl } from "@/utils/utility";
+import { getVersion } from "@tauri-apps/api/app";
+
+// GitHub repository URLs
+const GITHUB_REPO_URL = 'https://github.com/Steemblocks/Steem-Wallet-Desktop';
+const GITHUB_RELEASES_URL = `${GITHUB_REPO_URL}/releases`;
+
 import {
   STEEM_NODES,
   SteemNode,
@@ -105,6 +114,7 @@ const AppSettingsOperations = ({
   const [isCustomNodeSelected, setIsCustomNodeSelected] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
   const { toast } = useToast();
 
   // WebSocket connection status monitoring
@@ -125,6 +135,24 @@ const AppSettingsOperations = ({
       unsubConnect();
       unsubDisconnect();
     };
+  }, []);
+
+  // Load app version on mount
+  useEffect(() => {
+    const loadVersion = async () => {
+      try {
+        if (typeof window !== 'undefined' && '__TAURI__' in window) {
+          const version = await getVersion();
+          setAppVersion(version);
+        } else {
+          setAppVersion('dev');
+        }
+      } catch (error) {
+        console.error('Failed to get app version:', error);
+        setAppVersion('unknown');
+      }
+    };
+    loadVersion();
   }, []);
 
   // Load settings and selected node from storage on mount
@@ -1299,6 +1327,48 @@ const AppSettingsOperations = ({
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* App Update Card */}
+      <Card className="shadow-md border-0 bg-slate-800/50">
+        <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 pb-4 rounded-t-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Info className="w-5 h-5 text-blue-400" />
+              <div>
+                <CardTitle className="text-lg text-white">
+                  App Updates
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  Check for new releases and view the source code
+                </CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className="border-blue-500/50 text-blue-400 bg-blue-500/10">
+              v{appVersion || 'Loading...'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => openExternalUrl(GITHUB_REPO_URL)}
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              View Source Code
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => openExternalUrl(GITHUB_RELEASES_URL)}
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              All Releases
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

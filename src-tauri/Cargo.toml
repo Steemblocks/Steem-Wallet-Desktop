@@ -1,6 +1,6 @@
 [package]
 name = "steem_wallet_desktop"
-version = "0.1.4"
+version = "0.1.5"
 description = "Secure Steem Wallet Desktop Application"
 authors = ["Steem Wallet Team"]
 license = "MIT"

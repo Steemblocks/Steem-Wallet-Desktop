@@ -16,6 +16,26 @@
         var img = new Image();
         img.src = '/steem-logo.png';
       })();
+      
+      // Suppress browser intervention messages in console
+      (function() {
+        var originalWarn = console.warn;
+        var originalLog = console.log;
+        console.warn = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var message = args.join(' ');
+          if (message.indexOf('[Intervention]') === -1) {
+            originalWarn.apply(console, args);
+          }
+        };
+        console.log = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var message = args.join(' ');
+          if (message.indexOf('[Intervention]') === -1) {
+            originalLog.apply(console, args);
+          }
+        };
+      })();
     </script>
 
     <!-- Tauri Desktop Application -->

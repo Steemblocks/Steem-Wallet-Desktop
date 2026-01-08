@@ -270,7 +270,7 @@ export const AppLockScreen = ({ onUnlock, onReset }: AppLockScreenProps) => {
 
           {/* Security note */}
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Your wallet automatically locks after 15 minutes of inactivity for security.
+            Your wallet automatically locks after a period of inactivity for security.
           </p>
         </CardContent>
       </Card>
