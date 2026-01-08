@@ -380,7 +380,7 @@ For commercial licensing inquiries, contact the maintainers.
 **Code Quality**
 - Replaced `window.open()` with Tauri's `openExternalUrl` utility across all components
 - Cleaned up unused auto-update code and dependencies
-- Removed tauri-plugin-updater (simplified release process)
+- Removed tauri-plugin-updater (simplified and stable release purpose)
 
 ### Version 0.1.4 (January 2026)
 **Bug Fixes**
