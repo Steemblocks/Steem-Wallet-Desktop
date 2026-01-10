@@ -107,11 +107,21 @@ const GovernanceOperations = () => {
   const { invalidateUserVotes } = useInvalidateProposals();
   const [localVoteChanges, setLocalVoteChanges] = useState<{added: number[], removed: number[]}>({added: [], removed: []});
   
+  // Track if we've already synced with initial server votes
+  const hasInitializedVotes = useRef(false);
+  
   // Clear local changes when server data updates (after invalidation refreshes)
   useEffect(() => {
-    // When server data changes, clear local optimistic changes that are now reflected in server
-    setLocalVoteChanges({ added: [], removed: [] });
-  }, [serverUserVotes]);
+    // Only clear local changes if we've already initialized (not on first render)
+    if (hasInitializedVotes.current) {
+      setLocalVoteChanges({ added: [], removed: [] });
+    } else {
+      // Mark as initialized after first data load
+      if (serverUserVotes.length > 0 || username) {
+        hasInitializedVotes.current = true;
+      }
+    }
+  }, [serverUserVotes, username]);
   
   // Combine server data with local optimistic changes
   const userVotedProposals = [
