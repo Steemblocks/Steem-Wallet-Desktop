@@ -113,6 +113,74 @@ textarea::placeholder {
   opacity: 1;
 }
 
+/* ============================================= */
+/* PASSWORD FIELD STYLING - Tauri Desktop App  */
+/* ============================================= */
+/* Hide ALL browser native password reveal UI */
+/* This ensures only custom eye icons show */
+
+/* Microsoft Edge / IE - hide native reveal and clear buttons */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Chromium/Tauri webview - hide native reveal button */
+input[type="password"]::-webkit-reveal-button,
+input[type="password"]::-webkit-clear-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  visibility: hidden !important;
+}
+
+/* WebKit - hide caps lock indicator */
+input[type="password"]::-webkit-caps-lock-indicator {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Remove any webkit spinner/number input controls */
+input[type="password"]::-webkit-outer-spin-button,
+input[type="password"]::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  margin: 0 !important;
+  display: none !important;
+}
+
+/* Ensure password field doesn't have any default UI */
+input[type="password"] {
+  -webkit-text-security: disc !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Also apply to text inputs that are toggled from password (for show/hide feature) */
+input[type="text"]::-ms-reveal,
+input[type="text"]::-ms-clear {
+  display: none !important;
+}
+
+/* Ensure custom buttons overlap properly without browser buttons interfering */
+input[type="password"]::-webkit-contacts-auto-fill-button,
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="text"]::-webkit-contacts-auto-fill-button,
+input[type="text"]::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Force color scheme for the entire app */
 :root {
   color-scheme: dark;
@@ -202,7 +270,8 @@ textarea::placeholder {
 }
 
 @keyframes fullShine {
-  0%, 100% {
+  0%,
+  100% {
     background-position: -100% -100%;
   }
   50% {

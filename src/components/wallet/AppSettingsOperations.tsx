@@ -47,10 +47,10 @@ import { SecureStorageFactory } from "@/services/secureStorage";
 import { refreshClient } from "@/services/steemOperations";
 import { steemWebSocket } from "@/services/steemWebSocket";
 import { openExternalUrl } from "@/utils/utility";
-import { getVersion } from "@tauri-apps/api/app";
+// getVersion will be dynamically imported
 
 // GitHub repository URLs
-const GITHUB_REPO_URL = 'https://github.com/Steemblocks/Steem-Wallet-Desktop';
+const GITHUB_REPO_URL = "https://github.com/Steemblocks/Steem-Wallet-Desktop";
 const GITHUB_RELEASES_URL = `${GITHUB_REPO_URL}/releases`;
 
 import {
@@ -88,13 +88,13 @@ const defaultSettings: AppSettings = {
 
 // Auto-lock timeout options (in minutes)
 const AUTO_LOCK_OPTIONS = [
-  { value: 1, label: '1 minute' },
-  { value: 5, label: '5 minutes' },
-  { value: 10, label: '10 minutes' },
-  { value: 15, label: '15 minutes' },
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
-  { value: 120, label: '2 hours' },
+  { value: 1, label: "1 minute" },
+  { value: 5, label: "5 minutes" },
+  { value: 10, label: "10 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 30, label: "30 minutes" },
+  { value: 60, label: "1 hour" },
+  { value: 120, label: "2 hours" },
 ];
 
 const AppSettingsOperations = ({
@@ -114,7 +114,7 @@ const AppSettingsOperations = ({
   const [isCustomNodeSelected, setIsCustomNodeSelected] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>('');
+  const [appVersion, setAppVersion] = useState<string>("");
   const { toast } = useToast();
 
   // WebSocket connection status monitoring
@@ -141,15 +141,16 @@ const AppSettingsOperations = ({
   useEffect(() => {
     const loadVersion = async () => {
       try {
-        if (typeof window !== 'undefined' && '__TAURI__' in window) {
+        if (typeof window !== "undefined" && "__TAURI__" in window) {
+          const { getVersion } = await import("@tauri-apps/api/app");
           const version = await getVersion();
           setAppVersion(version);
         } else {
-          setAppVersion('dev');
+          setAppVersion("dev");
         }
       } catch (error) {
-        console.error('Failed to get app version:', error);
-        setAppVersion('unknown');
+        console.error("Failed to get app version:", error);
+        setAppVersion("unknown");
       }
     };
     loadVersion();
@@ -198,7 +199,7 @@ const AppSettingsOperations = ({
         setNodeLatencies((prev) => ({ ...prev, [selectedNode]: latency }));
       }
     };
-    
+
     if (selectedNode) {
       testCurrentNodeLatency();
     }
@@ -230,7 +231,10 @@ const AppSettingsOperations = ({
         latencyResults.push({ node: result.node, latency: result.latency });
       }
       // Update latencies state
-      setNodeLatencies((prev) => ({ ...prev, [result.node.url]: result.latency }));
+      setNodeLatencies((prev) => ({
+        ...prev,
+        [result.node.url]: result.latency,
+      }));
     }
 
     // Sort by latency (fastest first)
@@ -238,7 +242,7 @@ const AppSettingsOperations = ({
 
     if (latencyResults.length > 0) {
       const bestNode = latencyResults[0];
-      
+
       // Only switch if it's different from current node
       if (bestNode.node.url !== selectedNode) {
         await saveSelectedNode(bestNode.node.url);
@@ -264,7 +268,8 @@ const AppSettingsOperations = ({
     } else if (showToast) {
       toast({
         title: "No Nodes Available",
-        description: "Could not connect to any API nodes. Please try again later.",
+        description:
+          "Could not connect to any API nodes. Please try again later.",
         variant: "destructive",
       });
     }
@@ -292,7 +297,9 @@ const AppSettingsOperations = ({
       await storage.setItem("app_settings", JSON.stringify(newSettings));
 
       // Dispatch custom event for immediate sync across components
-      window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: newSettings }));
+      window.dispatchEvent(
+        new CustomEvent("app-settings-changed", { detail: newSettings })
+      );
 
       // If enabling auto node switch, immediately find and switch to best node
       if (key === "autoNodeSwitch" && value && !isCustomNodeSelected) {
@@ -326,12 +333,16 @@ const AppSettingsOperations = ({
       await storage.setItem("app_settings", JSON.stringify(newSettings));
 
       // Dispatch custom event for immediate sync across components
-      window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: newSettings }));
+      window.dispatchEvent(
+        new CustomEvent("app-settings-changed", { detail: newSettings })
+      );
 
-      const option = AUTO_LOCK_OPTIONS.find(o => o.value === minutes);
+      const option = AUTO_LOCK_OPTIONS.find((o) => o.value === minutes);
       toast({
         title: "Auto-Lock Time Updated",
-        description: `Wallet will lock after ${option?.label || minutes + ' minutes'} of inactivity.`,
+        description: `Wallet will lock after ${
+          option?.label || minutes + " minutes"
+        } of inactivity.`,
         variant: "success",
       });
     } catch (error) {
@@ -356,29 +367,31 @@ const AppSettingsOperations = ({
 
   // Check if running in Tauri - check multiple ways to be sure
   const isTauri = (): boolean => {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === "undefined") return false;
     // Check for __TAURI__ global
-    if ('__TAURI__' in window) return true;
+    if ("__TAURI__" in window) return true;
     // Check for __TAURI_INTERNALS__ (Tauri v2)
-    if ('__TAURI_INTERNALS__' in window) return true;
+    if ("__TAURI_INTERNALS__" in window) return true;
     return false;
   };
 
   // Test node latency using Tauri's HTTP client (bypasses CORS)
-  const testNodeLatencyTauri = async (nodeUrl: string): Promise<number | null> => {
+  const testNodeLatencyTauri = async (
+    nodeUrl: string
+  ): Promise<number | null> => {
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
+      const { invoke } = await import("@tauri-apps/api/core");
       const normalizedUrl = nodeUrl.replace(/\/+$/, "");
-      
+
       console.log("Testing node (Tauri HTTP):", normalizedUrl);
-      
+
       const result = await invoke<{
         success: boolean;
         status: number;
         body: string | null;
         error: string | null;
         latency_ms: number;
-      }>('http_post', {
+      }>("http_post", {
         url: normalizedUrl,
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -387,7 +400,7 @@ const AppSettingsOperations = ({
           id: 1,
         }),
       });
-      
+
       if (result.success && result.body) {
         const data = JSON.parse(result.body);
         if (data.result) {
@@ -404,13 +417,18 @@ const AppSettingsOperations = ({
   };
 
   // Test node latency using browser fetch (may fail due to CORS in dev mode)
-  const testNodeLatencyBrowser = async (nodeUrl: string): Promise<number | null> => {
+  const testNodeLatencyBrowser = async (
+    nodeUrl: string
+  ): Promise<number | null> => {
     try {
       const normalizedUrl = nodeUrl.replace(/\/+$/, "");
 
       // In dev mode, warn that CORS may cause issues
       if (import.meta.env.DEV) {
-        console.log("Testing node (Browser - CORS may cause issues):", normalizedUrl);
+        console.log(
+          "Testing node (Browser - CORS may cause issues):",
+          normalizedUrl
+        );
       } else {
         console.log("Testing node (Browser):", normalizedUrl);
       }
@@ -443,11 +461,15 @@ const AppSettingsOperations = ({
       return null;
     } catch (error) {
       // In dev mode, CORS errors are expected - don't log as errors
-      if (import.meta.env.DEV && error instanceof TypeError && error.message === 'Failed to fetch') {
+      if (
+        import.meta.env.DEV &&
+        error instanceof TypeError &&
+        error.message === "Failed to fetch"
+      ) {
         // Silently return null in dev mode for CORS errors
         return null;
       }
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
         console.warn("Node test failed (CORS blocked):", nodeUrl);
       } else {
         console.error("Node test failed:", nodeUrl, error);
@@ -547,7 +569,7 @@ const AppSettingsOperations = ({
       const nodeName = customNodeName.trim() || `Custom Node`;
       const updatedList = await addCustomNode(formattedUrl, nodeName);
       setCustomNodesList(updatedList);
-      
+
       await saveCustomNode(formattedUrl);
       await saveSelectedNode(formattedUrl);
       setCurrentNode(formattedUrl);
@@ -608,7 +630,10 @@ const AppSettingsOperations = ({
   };
 
   // Handle deleting a custom node
-  const handleDeleteCustomNode = async (node: CustomNode, e: React.MouseEvent) => {
+  const handleDeleteCustomNode = async (
+    node: CustomNode,
+    e: React.MouseEvent
+  ) => {
     e.stopPropagation(); // Prevent triggering node selection
 
     const updatedList = await removeCustomNode(node.url);
@@ -712,7 +737,9 @@ const AppSettingsOperations = ({
                 <span className="text-sm text-slate-300">Auto</span>
                 <Switch
                   checked={settings.autoNodeSwitch}
-                  onCheckedChange={(checked) => updateSetting("autoNodeSwitch", checked)}
+                  onCheckedChange={(checked) =>
+                    updateSetting("autoNodeSwitch", checked)
+                  }
                   className="data-[state=checked]:bg-purple-500"
                 />
               </div>
@@ -748,7 +775,9 @@ const AppSettingsOperations = ({
                     {nodeLatencies[selectedNode] !== undefined && (
                       <Badge
                         variant="outline"
-                        className={`text-xs ${getLatencyColor(nodeLatencies[selectedNode])}`}
+                        className={`text-xs ${getLatencyColor(
+                          nodeLatencies[selectedNode]
+                        )}`}
                       >
                         {nodeLatencies[selectedNode] !== null
                           ? `${nodeLatencies[selectedNode]}ms`
@@ -976,7 +1005,9 @@ const AppSettingsOperations = ({
                     {customNodesList.map((node) => (
                       <div
                         key={node.url}
-                        onClick={() => !isTestingNode && handleSelectCustomNode(node)}
+                        onClick={() =>
+                          !isTestingNode && handleSelectCustomNode(node)
+                        }
                         className={`border rounded-lg p-3 cursor-pointer transition-all ${
                           selectedNode === node.url
                             ? "border-purple-500 bg-purple-500/10"
@@ -1053,7 +1084,8 @@ const AppSettingsOperations = ({
                           Add Custom API Node
                         </p>
                         <p className="text-xs text-slate-400">
-                          Enter any Steem-compatible API endpoint URL to save and connect
+                          Enter any Steem-compatible API endpoint URL to save
+                          and connect
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -1075,7 +1107,8 @@ const AppSettingsOperations = ({
                           <Button
                             onClick={handleConnectCustomNode}
                             disabled={
-                              isTestingNode === "custom" || !customNodeUrl.trim()
+                              isTestingNode === "custom" ||
+                              !customNodeUrl.trim()
                             }
                             className="bg-purple-600 hover:bg-purple-700 text-white px-4"
                           >
@@ -1123,16 +1156,20 @@ const AppSettingsOperations = ({
           </div>
         </CardHeader>
         <CardContent className="pt-4">
-          <div className={`p-4 rounded-lg border ${
-            wsConnected 
-              ? "bg-green-500/10 border-green-500/30" 
-              : "bg-red-500/10 border-red-500/30"
-          }`}>
+          <div
+            className={`p-4 rounded-lg border ${
+              wsConnected
+                ? "bg-green-500/10 border-green-500/30"
+                : "bg-red-500/10 border-red-500/30"
+            }`}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  wsConnected ? "bg-green-500/20" : "bg-red-500/20"
-                }`}>
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    wsConnected ? "bg-green-500/20" : "bg-red-500/20"
+                  }`}
+                >
                   {wsReconnecting ? (
                     <RefreshCw className="w-5 h-5 text-yellow-400 animate-spin" />
                   ) : wsConnected ? (
@@ -1144,8 +1181,16 @@ const AppSettingsOperations = ({
                 <div>
                   <p className="text-sm text-slate-400">Connection Status</p>
                   <div className="flex items-center gap-2">
-                    <p className={`font-medium ${wsConnected ? "text-green-400" : "text-red-400"}`}>
-                      {wsReconnecting ? "Reconnecting..." : wsConnected ? "Connected" : "Disconnected"}
+                    <p
+                      className={`font-medium ${
+                        wsConnected ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {wsReconnecting
+                        ? "Reconnecting..."
+                        : wsConnected
+                        ? "Connected"
+                        : "Disconnected"}
                     </p>
                     <Badge
                       variant="outline"
@@ -1272,7 +1317,7 @@ const AppSettingsOperations = ({
                   </div>
                 );
               })}
-              
+
               {/* Auto App Lock with Time Selector */}
               <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 overflow-hidden">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 gap-3 sm:gap-4">
@@ -1296,7 +1341,9 @@ const AppSettingsOperations = ({
                     {settings.autoAppLock && (
                       <Select
                         value={(settings.autoLockTimeout || 15).toString()}
-                        onValueChange={(value) => updateAutoLockTimeout(parseInt(value))}
+                        onValueChange={(value) =>
+                          updateAutoLockTimeout(parseInt(value))
+                        }
                       >
                         <SelectTrigger className="w-[120px] bg-slate-700/50 border-slate-600 text-white text-sm">
                           <SelectValue placeholder="Select time" />
@@ -1345,8 +1392,11 @@ const AppSettingsOperations = ({
                 </CardDescription>
               </div>
             </div>
-            <Badge variant="outline" className="border-blue-500/50 text-blue-400 bg-blue-500/10">
-              v{appVersion || 'Loading...'}
+            <Badge
+              variant="outline"
+              className="border-blue-500/50 text-blue-400 bg-blue-500/10"
+            >
+              v{appVersion || "Loading..."}
             </Badge>
           </div>
         </CardHeader>
