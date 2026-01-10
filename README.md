@@ -373,6 +373,7 @@ For commercial licensing inquiries, contact the maintainers.
 - Optimized Vite build configuration for better code splitting
 - Resolved module import conflicts in Tauri API integration
 - Improved build output and reduced bundle analysis warnings
+- Improved password inputdialog dual eye icon
 
 **Fixes**
 - Fixed dynamic vs static import conflicts in `encryptedKeyStorage.ts`, `secureStorage.ts`, `httpClient.ts`, and `AppSettingsOperations.tsx`
