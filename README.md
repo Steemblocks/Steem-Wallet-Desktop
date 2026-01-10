@@ -2,7 +2,7 @@
 
 A secure, cross-platform desktop wallet for the Steem blockchain built with Tauri, React, and Rust.
 
-![Version](https://img.shields.io/badge/version-0.1.5-blue)
+![Version](https://img.shields.io/badge/version-0.1.6-blue)
 ![License](https://img.shields.io/badge/license-Non--Commercial-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
@@ -368,7 +368,20 @@ For commercial licensing inquiries, contact the maintainers.
 
 ## Changelog
 
+### Version 0.1.6 (January 2026)
+**Build & Performance**
+- Optimized Vite build configuration for better code splitting
+- Resolved module import conflicts in Tauri API integration
+- Improved build output and reduced bundle analysis warnings
+
+**Fixes**
+- Fixed dynamic vs static import conflicts in `encryptedKeyStorage.ts`, `secureStorage.ts`, `httpClient.ts`, and `AppSettingsOperations.tsx`
+- Optimized Tauri API imports for production builds
+- Enhanced build process efficiency
+
 ### Version 0.1.5 (January 2026)
+**Note:** This version has been superseded by 0.1.6. See 0.1.6 for latest improvements.
+
 **Improvements**
 - Added app version display in App Settings → App Updates section
 - Fixed Account switch data loading issues, UI UX data sync issues
